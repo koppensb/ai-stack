@@ -1,0 +1,74 @@
+# Internal Open WebUI research backend. No host port or public proxy route.
+# Keep upstream engine implementations, but explicitly limit the selected sources.
+# Review this list when updating SEARXNG_VERSION.
+use_default_settings:
+  engines:
+    keep_only:
+      - brave
+      - duckduckgo
+      - wikipedia
+      - brave.news
+      - duckduckgo news
+      - github
+      - stackoverflow
+      - arxiv
+
+server:
+  # Overridden by SEARXNG_SECRET; the installer generates a random value.
+  secret_key: "ultrasecretkey"
+  # Requests arrive from internal Open WebUI; no public search endpoint is exposed.
+  # Revisit rate limiting if this service is exposed directly to other clients.
+  limiter: false
+  public_instance: false
+  image_proxy: false
+
+search:
+  # 0=off, 1=moderate, 2=strict; actual filtering depends on the selected engine.
+  safe_search: 1
+  # Keep German and English sources available; queries can specify a language.
+  default_lang: "all"
+  # API clients do not need autocomplete or third-party favicon requests.
+  autocomplete: ""
+  favicon_resolver: ""
+  formats:
+    - html
+    - json
+
+outgoing:
+  # Allow slower providers to answer, without waiting indefinitely.
+  request_timeout: 5.0
+  max_request_timeout: 10.0
+  # Keep upstream HTTP and error-suspension settings.
+
+engines:
+  # Normal queries use these three sources; retain equal default ranking weights.
+  - name: brave
+    disabled: false
+    categories: [general, web]
+  - name: duckduckgo
+    disabled: false
+    categories: [general, web]
+  - name: wikipedia
+    disabled: false
+    categories: [general]
+    # Open WebUI consumes results[], not SearXNG's separate infoboxes.
+    display_type: [list]
+
+  # Explicit categories or bangs select specialist sources. They are not queried
+  # for every general web search (e.g. !news, !gh, !st, !arx).
+  - name: brave.news
+    disabled: false
+    categories: [news]
+  - name: duckduckgo news
+    disabled: false
+    categories: [news]
+  - name: github
+    disabled: false
+    categories: [it]
+  - name: stackoverflow
+    disabled: false
+    categories: [it]
+  - name: arxiv
+    disabled: false
+    categories: [science]
+    timeout: 8.0

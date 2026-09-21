@@ -1,0 +1,62 @@
+# Alert conditions are evaluated by Prometheus; `for` requires sustained failure.
+# This stack does not configure Alertmanager delivery. Model-level series vanish
+# when weights unload, so router/loop availability uses the fixed coordinator.
+groups:
+  - name: llm-sre-alerts
+    rules:
+      - alert: InstanceDown
+        expr: 'up{job!="llama-cpp"} == 0'
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Monitoring endpoint {{ $labels.instance }} down"
+          description: "The {{ $labels.job }} scrape has failed for two minutes."
+
+      # The fixed coordinator target remains present even when all models unload.
+      - alert: LlamaCppDown
+        expr: 'ai_control_plane_llama_reachable == 0'
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "llama.cpp router is unreachable"
+          description: "The coordinator has not successfully read the router model list for more than two minutes."
+
+      - alert: VramCoordinatorStalled
+        expr: 'ai_control_plane_loop_healthy == 0'
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "VRAM coordinator loop stalled"
+          description: "The HTTP endpoint responds but the coordination loop is stale."
+
+      - alert: LlamaCppModelMetricsDown
+        expr: 'up{job="llama-cpp"} == 0'
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Loaded model metrics unavailable"
+          description: "Metrics for {{ $labels.llama_model_id }} cannot be scraped."
+
+      # Ignore idle models. The five-minute rate window smooths short requests;
+      # tune this threshold to the hardware and workload, not as a latency SLA.
+      - alert: LlamaCppGenerationThroughputLow
+        expr: 'rate(llamacpp:tokens_predicted_total[5m]) < 1 and llamacpp:requests_processing > 0'
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low llama.cpp generation throughput"
+          description: "Generation throughput stays below one token/s while requests are active."
+
+      - alert: LlamaCppQueueDepthHigh
+        expr: 'llamacpp:requests_deferred > 10'
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "llama.cpp request queue is high"
+          description: "The model has {{ $value }} deferred requests."

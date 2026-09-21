@@ -1,0 +1,501 @@
+# Deployment values come from .env; .env.example is the complete template.
+# Fixed service URLs, container paths and security settings stay here.
+# expose documents internal service ports; only nginx ports are host-published.
+# internal networks have no direct Internet route; public-net supplies egress.
+networks:
+  public-net:
+    driver: bridge
+  terminal-net:
+    # Dedicated network with outbound access for package installation.
+    driver: bridge
+  # Separate browser-facing app traffic from model and monitoring backends.
+  frontend-net:
+    driver: bridge
+    internal: true
+  backend-net:
+    driver: bridge
+    internal: true
+  monitoring-net:
+    driver: bridge
+    internal: true
+
+# File-backed Compose secrets retain host permissions. The installer adds a
+# read ACL for Prometheus so it can authenticate model-metrics requests.
+secrets:
+  llama_cpp_api_key:
+    file: ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/llama-cpp/api-key.txt
+
+services:
+  # Offline inference runtime: install extensions/dependencies during the build.
+  comfyui:
+    build:
+      context: .
+      dockerfile: comfyui_rocm.dockerfile
+      # Resolve the latest release again on every build.
+      no_cache: true
+      args:
+        ROCM_PYTORCH_IMAGE: ${COMFYUI_ROCM_PYTORCH_IMAGE:?Set COMFYUI_ROCM_PYTORCH_IMAGE in .env (see .env.example)}
+        COMFYUI_REF: latest
+        COMFYUI_GGUF_REF: ${COMFYUI_GGUF_REF:?Set COMFYUI_GGUF_REF in .env (see .env.example)}
+    image: comfyui_rocm:latest
+    container_name: comfyui
+    restart: unless-stopped
+    runtime: amd
+    networks:
+      - backend-net
+    shm_size: ${COMFYUI_SHM_SIZE:?Set COMFYUI_SHM_SIZE in .env (see .env.example)}
+    expose:
+      - "8188"
+    environment:
+      AMD_VISIBLE_DEVICES: ${AMD_VISIBLE_DEVICES:?Set AMD_VISIBLE_DEVICES in .env (see .env.example)}
+      HIP_VISIBLE_DEVICES: ${COMFYUI_HIP_VISIBLE_DEVICES:?Set COMFYUI_HIP_VISIBLE_DEVICES in .env (see .env.example)}
+    volumes:
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/data/comfyui/input:/opt/ComfyUI/input
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/data/comfyui/output:/opt/ComfyUI/output
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/data/comfyui/user:/opt/ComfyUI/user
+      # Managed templates appear in ComfyUI Workflows > ai-stack; use Save As to edit.
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/comfyui/workflows:/opt/ComfyUI/user/default/workflows/ai-stack:ro
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/data/comfyui/models:/opt/ComfyUI/models
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/data/comfyui/custom_nodes:/opt/ComfyUI/custom_nodes
+
+  # Main GPU router. The build anchor is reused by the image-prompt service.
+  llama-cpp:
+    build: &llama-build
+      context: .
+      dockerfile: llama_cpp_rocm.dockerfile
+      args:
+        ROCM_GFX_TARGETS: ${ROCM_GFX_TARGETS:?Set ROCM_GFX_TARGETS in .env (see .env.example)}
+        LLAMA_CPP_REF: ${LLAMA_CPP_REF:?Set LLAMA_CPP_REF in .env (see .env.example)}
+    image: llama_cpp_rocm:latest
+    container_name: llama-cpp
+    restart: unless-stopped
+    runtime: amd
+    networks:
+      - public-net
+      - backend-net
+      - monitoring-net
+
+    shm_size: "32gb"
+
+    volumes:
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/data/llama-cpp:/models
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/llama-cpp/models.ini:/etc/llama-cpp/models.ini:ro
+
+    environment:
+      HF_TOKEN: ${HF_TOKEN-}
+      LLAMA_CACHE: /models
+      AMD_VISIBLE_DEVICES: ${AMD_VISIBLE_DEVICES:?Set AMD_VISIBLE_DEVICES in .env (see .env.example)}
+
+    secrets:
+      - llama_cpp_api_key
+
+    command:
+      # No single-model arguments: start llama-server in router mode.
+      - --models-max
+      - ${LLAMA_CPP_MODELS_MAX:?Set LLAMA_CPP_MODELS_MAX in .env (see .env.example)}
+      - --models-autoload
+      - --models-preset
+      - /etc/llama-cpp/models.ini
+
+      # These arguments are inherited by each model process.
+      - --gpu-layers
+      - ${LLAMA_CPP_GPU_LAYERS:?Set LLAMA_CPP_GPU_LAYERS in .env (see .env.example)}
+      - --split-mode
+      - none
+      - --main-gpu
+      - "0"
+      - --ctx-size
+      - ${LLAMA_CPP_CTX_SIZE:?Set LLAMA_CPP_CTX_SIZE in .env (see .env.example)}
+      - --batch-size
+      - ${LLAMA_CPP_BATCH_SIZE:?Set LLAMA_CPP_BATCH_SIZE in .env (see .env.example)}
+      - --ubatch-size
+      - ${LLAMA_CPP_UBATCH_SIZE:?Set LLAMA_CPP_UBATCH_SIZE in .env (see .env.example)}
+      # Reuse identical prompt prefixes while the model process remains loaded.
+      - --cache-prompt
+      - --cache-type-k
+      - q8_0
+      - --cache-type-v
+      - q8_0
+      - --flash-attn
+      - "on"
+      - --parallel
+      - "1"
+      - --threads
+      - "8"
+      - --threads-batch
+      - "8"
+      - --load-mode
+      - mmap
+      - --metrics
+      - --slots
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --api-key-file
+      - /run/secrets/llama_cpp_api_key
+
+    expose:
+      - "8000"
+
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: ${LLAMA_CPP_HEALTH_START_PERIOD:?Set LLAMA_CPP_HEALTH_START_PERIOD in .env (see .env.example)}
+      start_interval: 30s
+
+  # Separate prompt/task router sharing the model cache and ROCm image.
+  # It currently inherits GPU offloading; it is not configured as CPU-only.
+  llama-cpp-image:
+    build: *llama-build
+    image: llama_cpp_rocm:latest
+    runtime: amd
+    networks:
+      - public-net
+      - backend-net
+    volumes:
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/data/llama-cpp:/models
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/llama-cpp-image/models.ini:/etc/llama-cpp/models.ini:ro
+    environment:
+      HF_TOKEN: ${HF_TOKEN-}
+      LLAMA_CACHE: /models
+      AMD_VISIBLE_DEVICES: ${AMD_VISIBLE_DEVICES:?Set AMD_VISIBLE_DEVICES in .env (see .env.example)}
+
+    secrets:
+      - llama_cpp_api_key
+
+    command:
+      # No single-model arguments: start llama-server in router mode.
+      - --models-max
+      - "1"
+      - --models-autoload
+      - --models-preset
+      - /etc/llama-cpp/models.ini
+
+      # These arguments are inherited by each model process.
+      - --gpu-layers
+      - ${LLAMA_CPP_GPU_LAYERS:?Set LLAMA_CPP_GPU_LAYERS in .env (see .env.example)}
+      - --split-mode
+      - none
+      - --main-gpu
+      - "0"
+      - --ctx-size
+      - ${LLAMA_CPP_IMAGE_CTX_SIZE:?Set LLAMA_CPP_IMAGE_CTX_SIZE in .env (see .env.example)}
+      - --batch-size
+      - ${LLAMA_CPP_BATCH_SIZE:?Set LLAMA_CPP_BATCH_SIZE in .env (see .env.example)}
+      # Reuse identical prompt prefixes while the model process remains loaded.
+      - --cache-prompt
+      - --cache-type-k
+      - q8_0
+      - --cache-type-v
+      - q8_0
+      - --flash-attn
+      - "on"
+      - --parallel
+      - "1"
+      # CPU threads for token generation and prompt processing, respectively.
+      - --threads
+      - ${LLAMA_CPP_IMAGE_THREADS:?Set LLAMA_CPP_IMAGE_THREADS in .env (see .env.example)}
+      - --threads-batch
+      - ${LLAMA_CPP_IMAGE_THREADS:?Set LLAMA_CPP_IMAGE_THREADS in .env (see .env.example)}
+      - --load-mode
+      - mmap
+      - --metrics
+      - --slots
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --api-key-file
+      - /run/secrets/llama_cpp_api_key
+
+    expose:
+      - "8000"
+
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: ${LLAMA_CPP_HEALTH_START_PERIOD:?Set LLAMA_CPP_HEALTH_START_PERIOD in .env (see .env.example)}
+      start_interval: 30s
+
+  nginx:
+    image: nginx:stable
+    container_name: nginx
+    restart: unless-stopped
+    networks:
+      - public-net
+      - frontend-net
+      - backend-net
+      - monitoring-net
+    depends_on:
+      llama-cpp:
+        condition: service_started
+      comfyui:
+        condition: service_started
+      openwebui:
+        condition: service_started
+      grafana:
+        condition: service_started
+    ports:
+      - "8080:80"
+      - "8443:443"
+      - "${COMFYUI_HTTPS_PORT:?Set COMFYUI_HTTPS_PORT in .env (see .env.example)}:8444"
+    volumes:
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/nginx/certs:/etc/nginx/certs:ro
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+      - /var/lib/nginx
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+      start_interval: 5s
+
+  searxng:
+    image: searxng/searxng:${SEARXNG_VERSION:?Set SEARXNG_VERSION in .env (see .env.example)}
+    container_name: searxng
+    restart: unless-stopped
+    networks:
+      - public-net
+      - backend-net
+    expose:
+      - "8080"
+    environment:
+      # The upstream sentinel prevents startup until a real secret is configured.
+      SEARXNG_SECRET: ${SEARXNG_SECRET:?Set SEARXNG_SECRET in .env (see .env.example)}
+    volumes:
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/searxng:/etc/searxng
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/data/searxng:/var/cache/searxng
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+      start_interval: 5s
+
+  # One shared persistent workspace for authorized terminal users, not per-user
+  # isolation. Access grants are managed separately from model-preset sharing.
+  open-terminal:
+    image: ghcr.io/open-webui/open-terminal:${OPEN_TERMINAL_VERSION:?Set OPEN_TERMINAL_VERSION in .env (see .env.example)}
+    container_name: open-terminal
+    restart: unless-stopped
+    networks:
+      - terminal-net
+    expose:
+      - "8000"
+    environment:
+      OPEN_TERMINAL_API_KEY: ${OPEN_TERMINAL_API_KEY:?Set OPEN_TERMINAL_API_KEY in .env (see .env.example)}
+    volumes:
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/data/open-terminal:/home/user
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json, urllib.request; assert json.load(urllib.request.urlopen('http://localhost:8000/health', timeout=5))['status'] == 'ok'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+      start_interval: 5s
+
+  # The wrapper loads workflow JSON and starts the one-time preset helper.
+  # Saved admin settings can override environment defaults in existing databases.
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:${OPENWEBUI_VERSION:?Set OPENWEBUI_VERSION in .env (see .env.example)}
+    container_name: openwebui
+    command: ["python", "/etc/openwebui/start.py"]
+    restart: unless-stopped
+    depends_on:
+      open-terminal:
+        condition: service_healthy
+      llama-cpp-image:
+        condition: service_started
+      llama-cpp:
+        condition: service_started
+    networks:
+      - public-net
+      - frontend-net
+      - terminal-net
+      - backend-net
+    expose:
+      - "8080"
+    environment:
+      # start.py serializes the terminal connection without interpolating JSON secrets.
+      OPEN_TERMINAL_API_KEY: ${OPEN_TERMINAL_API_KEY:?Set OPEN_TERMINAL_API_KEY in .env (see .env.example)}
+      # Semicolon-separated URLs and keys must remain aligned by index.
+      OPENAI_API_BASE_URLS: "http://llama-cpp:8000/v1;http://llama-cpp-image:8000/v1"
+      OPENAI_API_KEYS: "${LLAMA_CPP_API_KEY:?Set LLAMA_CPP_API_KEY in .env (see .env.example)};${LLAMA_CPP_API_KEY:?Set LLAMA_CPP_API_KEY in .env (see .env.example)}"
+      TASK_MODEL_EXTERNAL: Qwen3.5-4B
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:?Set WEBUI_SECRET_KEY in .env (see .env.example)}
+      WEBUI_AUTH: "true"
+      WEBUI_URL: https://${PUBLIC_IP_OR_DOMAIN:?Set PUBLIC_IP_OR_DOMAIN in .env (see .env.example)}:8443
+      ENABLE_OLLAMA_API: "false"
+      ENABLE_OPENAI_API: "true"
+      WEBUI_SESSION_COOKIE_SECURE: "true"
+      WEBUI_AUTH_COOKIE_SECURE: "true"
+      WEBUI_SESSION_COOKIE_SAME_SITE: lax
+      WEBUI_AUTH_COOKIE_SAME_SITE: lax
+      ENABLE_IMAGE_EDIT: ${ENABLE_IMAGE_EDIT:?Set ENABLE_IMAGE_EDIT in .env (see .env.example)}
+      IMAGE_EDIT_ENGINE: comfyui
+      IMAGE_EDIT_MODEL: ${IMAGE_EDIT_MODEL:?Set IMAGE_EDIT_MODEL in .env (see .env.example)}
+      IMAGE_EDIT_SIZE: ${IMAGE_EDIT_SIZE:?Set IMAGE_EDIT_SIZE in .env (see .env.example)}
+      IMAGES_EDIT_COMFYUI_BASE_URL: http://comfyui:8188
+      IMAGE_GENERATION_ENGINE: comfyui
+      COMFYUI_BASE_URL: http://comfyui:8188
+      ENABLE_SIGNUP: ${ENABLE_SIGNUP:?Set ENABLE_SIGNUP in .env (see .env.example)}
+      DEFAULT_USER_ROLE: ${DEFAULT_USER_ROLE:?Set DEFAULT_USER_ROLE in .env (see .env.example)}
+      RAG_TOP_K: ${RAG_TOP_K:?Set RAG_TOP_K in .env (see .env.example)}
+      ENABLE_RAG_HYBRID_SEARCH: ${ENABLE_RAG_HYBRID_SEARCH:?Set ENABLE_RAG_HYBRID_SEARCH in .env (see .env.example)}
+      CHUNK_SIZE: ${CHUNK_SIZE:?Set CHUNK_SIZE in .env (see .env.example)}
+      CHUNK_OVERLAP: ${CHUNK_OVERLAP:?Set CHUNK_OVERLAP in .env (see .env.example)}
+      ENABLE_IMAGE_GENERATION: ${ENABLE_IMAGE_GENERATION:?Set ENABLE_IMAGE_GENERATION in .env (see .env.example)}
+      ENABLE_IMAGE_PROMPT_GENERATION: ${ENABLE_IMAGE_PROMPT_GENERATION:?Set ENABLE_IMAGE_PROMPT_GENERATION in .env (see .env.example)}
+      IMAGE_GENERATION_MODEL: ${IMAGE_GENERATION_MODEL:?Set IMAGE_GENERATION_MODEL in .env (see .env.example)}
+      IMAGE_SIZE: ${IMAGE_SIZE:?Set IMAGE_SIZE in .env (see .env.example)}
+      IMAGE_STEPS: ${IMAGE_STEPS:?Set IMAGE_STEPS in .env (see .env.example)}
+      ENABLE_WEB_SEARCH: "true"
+      WEB_SEARCH_ENGINE: searxng
+      SEARXNG_QUERY_URL: http://searxng:8080/search?q=<query>&format=json
+      WEB_SEARCH_RESULT_COUNT: ${WEB_SEARCH_RESULT_COUNT:?Set WEB_SEARCH_RESULT_COUNT in .env (see .env.example)}
+      WEB_SEARCH_CONCURRENT_REQUESTS: ${WEB_SEARCH_CONCURRENT_REQUESTS:?Set WEB_SEARCH_CONCURRENT_REQUESTS in .env (see .env.example)}
+      WEB_LOADER_CONCURRENT_REQUESTS: ${WEB_LOADER_CONCURRENT_REQUESTS:?Set WEB_LOADER_CONCURRENT_REQUESTS in .env (see .env.example)}
+    volumes:
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/openwebui:/etc/openwebui:ro
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/data/openwebui:/app/backend/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json, urllib.request; assert json.load(urllib.request.urlopen('http://localhost:8080/health', timeout=5))['status'] is True"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      # Allow time for database migration and the first embedding-model download.
+      start_period: ${OPENWEBUI_HEALTH_START_PERIOD:?Set OPENWEBUI_HEALTH_START_PERIOD in .env (see .env.example)}
+      start_interval: 15s
+
+  # Polls the MAIN router and ComfyUI only; the image-prompt router is not
+  # coordinated or discovered by this instance. See CONFIGURATION.md for limits.
+  llama-metrics-discovery:
+    image: python:3.13-alpine
+    container_name: llama-metrics-discovery
+    restart: unless-stopped
+    runtime: amd
+    depends_on:
+      llama-cpp:
+        condition: service_started
+    networks:
+      - monitoring-net
+      - backend-net
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+      LLAMA_BASE_URL: http://llama-cpp:8000
+      LLAMA_API_KEY_FILE: /run/secrets/llama_cpp_api_key
+      COMFYUI_URL: ${COMFYUI_URL:?Set COMFYUI_URL in .env (see .env.example)}
+      AMD_VISIBLE_DEVICES: ${AMD_VISIBLE_DEVICES:?Set AMD_VISIBLE_DEVICES in .env (see .env.example)}
+      GPU_INDEX: ${GPU_INDEX:?Set GPU_INDEX in .env (see .env.example)}
+      VRAM_SOURCE: ${VRAM_SOURCE:?Set VRAM_SOURCE in .env (see .env.example)}
+      RESERVE_VRAM_MB: ${RESERVE_VRAM_MB:?Set RESERVE_VRAM_MB in .env (see .env.example)}
+      VRAM_THRESHOLD_PCT: ${VRAM_THRESHOLD_PCT:?Set VRAM_THRESHOLD_PCT in .env (see .env.example)}
+      CHECK_INTERVAL: ${VRAM_CHECK_INTERVAL:?Set VRAM_CHECK_INTERVAL in .env (see .env.example)}
+      COOLDOWN_SECONDS: ${VRAM_COOLDOWN_SECONDS:?Set VRAM_COOLDOWN_SECONDS in .env (see .env.example)}
+      HYSTERESIS_MB: ${VRAM_HYSTERESIS_MB:?Set VRAM_HYSTERESIS_MB in .env (see .env.example)}
+      HYSTERESIS_PCT: ${VRAM_HYSTERESIS_PCT:?Set VRAM_HYSTERESIS_PCT in .env (see .env.example)}
+      COMFYUI_IDLE_UNLOAD_SECONDS: ${COMFYUI_IDLE_UNLOAD_SECONDS:?Set COMFYUI_IDLE_UNLOAD_SECONDS in .env (see .env.example)}
+      AGGRESSIVE_FREE: ${VRAM_AGGRESSIVE_FREE:?Set VRAM_AGGRESSIVE_FREE in .env (see .env.example)}
+      AGGRESSIVE_DELAY_SECONDS: ${VRAM_AGGRESSIVE_DELAY_SECONDS:?Set VRAM_AGGRESSIVE_DELAY_SECONDS in .env (see .env.example)}
+      HTTP_TIMEOUT: ${VRAM_HTTP_TIMEOUT:?Set VRAM_HTTP_TIMEOUT in .env (see .env.example)}
+      COMMAND_TIMEOUT: ${VRAM_COMMAND_TIMEOUT:?Set VRAM_COMMAND_TIMEOUT in .env (see .env.example)}
+      ERROR_LOG_INTERVAL: ${VRAM_ERROR_LOG_INTERVAL:?Set VRAM_ERROR_LOG_INTERVAL in .env (see .env.example)}
+      STATS_INTERVAL: ${VRAM_STATS_INTERVAL:?Set VRAM_STATS_INTERVAL in .env (see .env.example)}
+      DEBUG: ${VRAM_DEBUG:?Set VRAM_DEBUG in .env (see .env.example)}
+    secrets:
+      - llama_cpp_api_key
+    volumes:
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/llama-metrics-discovery/llama_metrics_discovery.py:/app/llama_metrics_discovery.py:ro
+    # Runtime code is bind-mounted; updates require a restart, not an image build.
+    command: ["python", "/app/llama_metrics_discovery.py"]
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9091/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+      start_interval: 2s
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    depends_on:
+      llama-cpp:
+        condition: service_started
+      llama-metrics-discovery:
+        condition: service_healthy
+    networks:
+      - monitoring-net
+    secrets:
+      - llama_cpp_api_key
+    volumes:
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/prometheus/rules.yml:/etc/prometheus/rules.yml:ro
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/data/prometheus:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=15d"
+      - "--storage.tsdb.path=/prometheus"
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9090/-/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      start_interval: 5s
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    networks:
+      - monitoring-net
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env (see .env.example)}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: https://${PUBLIC_IP_OR_DOMAIN:?Set PUBLIC_IP_OR_DOMAIN in .env (see .env.example)}:8443/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_DASHBOARDS_MIN_REFRESH_INTERVAL: "2s"
+      # This container intentionally has no Internet access.
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_PLUGINS_PLUGIN_ADMIN_ENABLED: "false"
+    volumes:
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/data/grafana:/var/lib/grafana
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+      start_interval: 5s

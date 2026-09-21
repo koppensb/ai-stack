@@ -1,0 +1,30 @@
+[
+  {
+    "type": "model",
+    "node_ids": [
+      "1"
+    ],
+    "key": "unet_name"
+  },
+  {
+    "type": "prompt",
+    "node_ids": [
+      "6"
+    ],
+    "key": "prompt"
+  },
+  {
+    "type": "image",
+    "node_ids": [
+      "12"
+    ],
+    "key": "image"
+  },
+  {
+    "type": "seed",
+    "node_ids": [
+      "9"
+    ],
+    "key": "seed"
+  }
+]

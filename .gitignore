@@ -1,0 +1,63 @@
+# API Secrets & Local Configurations
+.env
+.env.local
+.env.backup-*
+.env.install-tmp
+.env.*.local
+/config/llama-cpp/api-key.txt
+
+# NGINX Certificates (Dynamic / Host-Specific)
+/config/nginx/certs/*
+!/config/nginx/certs/placecertshere
+
+# IDE & Editor Configurations
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Python Cache & Compilation Outputs
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+env/
+venv/
+
+# Operating System Metadata
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Local operator notes and deployment logs may contain machine-specific details.
+deployment-log.md
+instruction.txt
+instructions.txt
+
+# ComfyUI runtime data (keep directory placeholders only)
+/data/comfyui/input/*
+!/data/comfyui/input/.gitkeep
+/data/comfyui/output/*
+!/data/comfyui/output/.gitkeep
+/data/comfyui/user/*
+!/data/comfyui/user/.gitkeep
+/data/comfyui/models/*
+!/data/comfyui/models/.gitkeep
+/data/comfyui/custom_nodes/*
+!/data/comfyui/custom_nodes/.gitkeep
+
+# SearXNG runtime cache
+/data/searxng/
+
+# Installer backups and all persistent service data
+/.installer-backups/
+/.installer-recreate-required
+/compose.install.yml
+/data/llama-cpp/
+/data/openwebui/
+/data/prometheus/
+/data/grafana/

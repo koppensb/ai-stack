@@ -1,0 +1,290 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Operational overview for llama.cpp / llama-server using its native Prometheus /metrics endpoint. Enable it with --metrics.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": true,
+      "title": "llama.cpp server documentation",
+      "tooltip": "Prometheus endpoint and server options",
+      "type": "link",
+      "url": "https://github.com/ggml-org/llama.cpp/tree/master/tools/server"
+    }
+  ],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Router reachability is monitored even when every model is unloaded. No data means the coordinator is unavailable.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto", "wideLayout": true },
+      "pluginVersion": "10.4.0",
+      "targets": [{"editorMode": "code", "expr": "min(ai_control_plane_llama_reachable{job=\"llama-metrics-discovery\"})", "instant": true, "legendFormat": "Status", "range": false, "refId": "A"}],
+      "title": "Router Status",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Requests currently running across the selected targets.",
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "decimals": 0, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "blue", "value": 1 } ] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto", "wideLayout": true },
+      "pluginVersion": "10.4.0",
+      "targets": [ { "editorMode": "code", "expr": "sum(llamacpp:requests_processing{job=~\"$job\", instance=~\"$instance\"})", "instant": false, "legendFormat": "Active", "range": true, "refId": "A" } ],
+      "title": "Active Requests",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Requests waiting for a free inference slot. Sustained values indicate saturation.",
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "decimals": 0, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 1 }, { "color": "red", "value": 5 } ] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto", "wideLayout": true },
+      "pluginVersion": "10.4.0",
+      "targets": [ { "editorMode": "code", "expr": "sum(llamacpp:requests_deferred{job=~\"$job\", instance=~\"$instance\"})", "instant": false, "legendFormat": "Queued", "range": true, "refId": "A" } ],
+      "title": "Queued Requests",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Generation throughput derived from monotonic counters; more reliable than the scrape-reset gauge on recent llama.cpp versions.",
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "decimals": 1, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] }, "unit": "tps" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "id": 4,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto", "wideLayout": true },
+      "pluginVersion": "10.4.0",
+      "targets": [ { "editorMode": "code", "expr": "sum(rate(llamacpp:tokens_predicted_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))", "instant": false, "legendFormat": "Generation", "range": true, "refId": "A" } ],
+      "title": "Generation Throughput",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Prompt/prefill throughput derived from monotonic counters.",
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "decimals": 1, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] }, "unit": "tps" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "id": 5,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto", "wideLayout": true },
+      "pluginVersion": "10.4.0",
+      "targets": [ { "editorMode": "code", "expr": "sum(rate(llamacpp:prompt_tokens_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))", "instant": false, "legendFormat": "Prompt", "range": true, "refId": "A" } ],
+      "title": "Prompt Throughput",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Aggregate prompt evaluation and token generation rates.",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 18, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "decimals": 1, "unit": "tps" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "id": 7,
+      "options": { "legend": { "calcs": ["lastNotNull", "mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "editorMode": "code", "expr": "sum(rate(llamacpp:prompt_tokens_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))", "legendFormat": "Prompt / Prefill", "range": true, "refId": "A" },
+        { "editorMode": "code", "expr": "sum(rate(llamacpp:tokens_predicted_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))", "legendFormat": "Generation / Decode", "range": true, "refId": "B" }
+      ],
+      "title": "Token Throughput",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Concurrent work and queue depth. A persistent queue means all slots are occupied.",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "Requests", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 20, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "stepAfter", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "decimals": 0, "min": 0, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "id": 8,
+      "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "editorMode": "code", "expr": "sum(llamacpp:requests_processing{job=~\"$job\", instance=~\"$instance\"})", "legendFormat": "Active", "range": true, "refId": "A" },
+        { "editorMode": "code", "expr": "sum(llamacpp:requests_deferred{job=~\"$job\", instance=~\"$instance\"})", "legendFormat": "Queued", "range": true, "refId": "B" }
+      ],
+      "title": "Request Concurrency & Queue",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Largest token count observed by the model server. Compare with the configured context size.",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "Tokens", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 12, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "insertNulls": false, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "decimals": 0, "min": 0, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 12},
+      "id": 11,
+      "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{"editorMode": "code", "expr": "max(llamacpp:n_tokens_max{job=~\"$job\", instance=~\"$instance\"})", "legendFormat": "Context high watermark", "range": true, "refId": "A"}],
+      "title": "Context High Watermark",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Cumulative prompt and generated token counts for the selected time range. Uses increase(), so it tolerates process restarts.",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "decimals": 0, "unit": "short" }, "overrides": [] },
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 12},
+      "id": 12,
+      "options": { "displayMode": "gradient", "maxVizHeight": 300, "minVizHeight": 16, "minVizWidth": 8, "namePlacement": "auto", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showUnfilled": true, "sizing": "auto", "valueMode": "color" },
+      "pluginVersion": "10.4.0",
+      "targets": [{"editorMode": "code", "expr": "sum(increase(llamacpp:prompt_tokens_total{job=~\"$job\", instance=~\"$instance\"}[$__range]))", "instant": true, "legendFormat": "Prompt tokens", "range": false, "refId": "A"}, {"editorMode": "code", "expr": "sum(increase(llamacpp:tokens_predicted_total{job=~\"$job\", instance=~\"$instance\"}[$__range]))", "instant": true, "legendFormat": "Generated tokens", "range": false, "refId": "B"}],
+      "title": "Tokens in Selected Range",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Average occupied slots per llama_decode() call and decode call frequency. Useful for checking continuous-batching efficiency.",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 15, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "decimals": 2, "min": 0, "unit": "short" }, "overrides": [ { "matcher": { "id": "byName", "options": "Decode calls / s" }, "properties": [ { "id": "unit", "value": "ops" }, { "id": "custom.axisPlacement", "value": "right" } ] } ] },
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 12},
+      "id": 13,
+      "options": { "legend": { "calcs": ["lastNotNull", "mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "editorMode": "code", "expr": "avg(llamacpp:n_busy_slots_per_decode{job=~\"$job\", instance=~\"$instance\"})", "legendFormat": "Busy slots / decode", "range": true, "refId": "A" },
+        { "editorMode": "code", "expr": "sum(rate(llamacpp:n_decode_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))", "legendFormat": "Decode calls / s", "range": true, "refId": "B" }
+      ],
+      "title": "Continuous Batching Efficiency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Share of speculative draft tokens accepted by the target model. Applies to MTP and other speculative decoding methods.",
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-GrYlRd" }, "decimals": 1, "max": 1, "min": 0, "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "yellow", "value": 0.4 }, { "color": "green", "value": 0.7 } ] }, "unit": "percentunit" }, "overrides": [] },
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 20},
+      "id": 14,
+      "options": { "minVizHeight": 75, "minVizWidth": 75, "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showThresholdLabels": false, "showThresholdMarkers": true, "sizing": "auto" },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        { "editorMode": "code", "expr": "sum(rate(llamacpp:spec_decode_num_accepted_tokens_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])) / clamp_min(sum(rate(llamacpp:spec_decode_num_draft_tokens_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])), 1e-9)", "instant": false, "legendFormat": "Acceptance", "range": true, "refId": "A" }
+      ],
+      "title": "Speculative Decode Acceptance",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Draft, accepted, and rejected speculative tokens per second. These series cover MTP, draft-model, EAGLE, and n-gram speculative decoding.",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "Tokens / s", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 15, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "decimals": 2, "min": 0, "unit": "tps" }, "overrides": [] },
+      "gridPos": {"h": 8, "w": 12, "x": 8, "y": 20},
+      "id": 15,
+      "options": { "legend": { "calcs": ["lastNotNull", "mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "editorMode": "code", "expr": "sum(rate(llamacpp:spec_decode_num_draft_tokens_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))", "legendFormat": "Drafted", "range": true, "refId": "A" },
+        { "editorMode": "code", "expr": "sum(rate(llamacpp:spec_decode_num_accepted_tokens_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))", "legendFormat": "Accepted", "range": true, "refId": "B" },
+        { "editorMode": "code", "expr": "clamp_min(sum(rate(llamacpp:spec_decode_num_draft_tokens_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])) - sum(rate(llamacpp:spec_decode_num_accepted_tokens_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])), 0)", "legendFormat": "Rejected", "range": true, "refId": "C" }
+      ],
+      "title": "MTP / Speculative Token Rates",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Verification frequency and average draft/accepted token counts per speculative decoding step.",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "Per verification", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 15, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "decimals": 2, "min": 0, "unit": "short" }, "overrides": [] },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28},
+      "id": 16,
+      "options": { "legend": { "calcs": ["lastNotNull", "mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "editorMode": "code", "expr": "sum(rate(llamacpp:spec_decode_num_drafts_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))", "legendFormat": "Verifications / s", "range": true, "refId": "A" },
+        { "editorMode": "code", "expr": "sum(rate(llamacpp:spec_decode_num_draft_tokens_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])) / clamp_min(sum(rate(llamacpp:spec_decode_num_drafts_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])), 1e-9)", "legendFormat": "Draft tokens / verification", "range": true, "refId": "B" },
+        { "editorMode": "code", "expr": "sum(rate(llamacpp:spec_decode_num_accepted_tokens_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])) / clamp_min(sum(rate(llamacpp:spec_decode_num_drafts_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])), 1e-9)", "legendFormat": "Accepted tokens / verification", "range": true, "refId": "C" }
+      ],
+      "title": "MTP / Speculative Draft Efficiency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Accepted speculative tokens by draft position. Missing positions indicate that the build or active speculative method does not export this optional metric.",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "Accepted tokens / s", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 12, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "decimals": 2, "min": 0, "unit": "tps" }, "overrides": [] },
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 36},
+      "id": 17,
+      "options": { "legend": { "calcs": ["lastNotNull", "mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "editorMode": "code", "expr": "sum by (position) (rate(llamacpp:spec_decode_num_accepted_tokens_per_pos_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))", "legendFormat": "Position {{position}}", "range": true, "refId": "A" }
+      ],
+      "title": "MTP / Speculative Acceptance by Draft Position",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "2s",
+  "schemaVersion": 39,
+  "tags": ["llama.cpp", "llama-server", "prometheus", "inference"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "label": "Prometheus",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
+      {
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "$datasource" },
+        "definition": "label_values(up{job=\"llama-cpp\"}, job)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Prometheus job",
+        "multi": true,
+        "name": "job",
+        "options": [],
+        "query": { "query": "label_values(up{job=\"llama-cpp\"}, job)", "refId": "PrometheusVariableQueryEditor-Job" },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "$datasource" },
+        "definition": "label_values(up{job=~\"$job\"}, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Instance",
+        "multi": true,
+        "name": "instance",
+        "options": [],
+        "query": { "query": "label_values(up{job=~\"$job\"}, instance)", "refId": "PrometheusVariableQueryEditor-Instance" },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "llama.cpp / llama-server",
+  "uid": "llamacpp-server-overview",
+  "version": 3,
+  "weekStart": ""
+}

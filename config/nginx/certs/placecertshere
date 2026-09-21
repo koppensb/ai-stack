@@ -1,0 +1,7 @@
+TLS certificate directory placeholder (not read by NGINX).
+
+Provide nginx.crt (certificate/chain) and nginx.key (private key) here in the
+DEPLOYED configuration directory. NGINX uses the same pair for ports 8443 and
+8444. The installer generates a self-signed pair only when neither file exists;
+it retains existing certificates, including when the hostname changes.
+Keep private keys out of version control. See INSTALL.md for setup details.

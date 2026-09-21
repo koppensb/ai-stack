@@ -1,0 +1,22 @@
+# Boot uses already-built images and downloaded weights; upgrades belong to the
+# installer. Keep WorkingDirectory and --env-file aligned with its fixed target.
+[Unit]
+Description=AI Stack
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+# Compose exits after starting containers. RemainAfterExit keeps this unit
+# active so systemd invokes ExecStop at shutdown; Docker restarts containers.
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/ai-stack
+ExecStart=/usr/bin/docker compose --project-name ai-stack --env-file /opt/ai-stack/.env -f docker-compose.yml up -d --no-build --pull never
+# Stop preserves containers, networks and persistent data for the next start.
+ExecStop=/usr/bin/docker compose --project-name ai-stack --env-file /opt/ai-stack/.env -f docker-compose.yml stop
+TimeoutStartSec=300
+TimeoutStopSec=300
+
+[Install]
+WantedBy=multi-user.target

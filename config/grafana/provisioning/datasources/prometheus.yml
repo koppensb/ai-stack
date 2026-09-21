@@ -1,0 +1,16 @@
+# The stable uid is referenced by dashboard JSON; changing it breaks panel links.
+# access=proxy makes Grafana fetch Prometheus over the internal Docker network.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      # Match Prometheus scrape_interval so Grafana chooses useful rate windows.
+      timeInterval: 2s
+      queryTimeout: 10s

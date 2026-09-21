@@ -1,0 +1,16 @@
+# File provisioning is authoritative: edit dashboard JSON in the source tree.
+# UI saving is disabled; removal from the provider can delete the provisioned copy.
+apiVersion: 1
+
+providers:
+  - name: default
+    orgId: 1
+    folder: ""
+    type: file
+    disableDeletion: false
+    editable: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/provisioning/dashboards/files
+      foldersFromFilesStructure: false
