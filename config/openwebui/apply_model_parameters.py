@@ -13,11 +13,11 @@ import sys
 
 # Workspace IDs are stable handles used by saved chats. Base-model parameters
 # stay untouched; missing base records are registered only to attach read grants.
-# The historical Qwen3.8-27B router section loads Qwen3.8-27B.
+# All chat roles share one router model; image prompting keeps its own model.
 MODEL_PRESETS = {
     "ai-stack-coding": ("Coding", "Qwen3.8-27B"),
-    "ai-stack-allround": ("Allround", "Qwen3.6-35B-A3B"),
-    "ai-stack-creativ": ("Creativ", "Gemma-4-31B"),
+    "ai-stack-allround": ("Allround", "Qwen3.8-27B"),
+    "ai-stack-creativ": ("Creativ", "Qwen3.8-27B"),
     "ai-stack-image-generation": (
         "Image Generation", "Qwen3.5-4B"
     ),
@@ -32,6 +32,7 @@ PROMPT_CACHE_KEY = "ai_stack.model_presets.prompt_cache_v1"
 ALLROUND_WEB_SEARCH_KEY = "ai_stack.model_presets.allround_web_search_v1"
 IMAGE_GENERATION_KEY = "ai_stack.model_presets.image_generation_v1"
 CODING_TERMINAL_KEY = "ai_stack.model_presets.coding_terminal_v1"
+CHAT_MODEL_KEY = "ai_stack.model_presets.qwen38_chat_v1"
 TERMINAL_ID = "ai-stack-open-terminal"
 
 CODING_SYSTEM_PROMPT = """You are Coding, an experienced software developer. You create, analyze, improve, and review code. Your solutions are correct, clear, secure, and maintainable.
@@ -357,6 +358,30 @@ async def ensure_public_access(models, users, form_type, grants=None):
     print("All four presets and their base models are readable by all signed-in users.", flush=True)
 
 
+async def ensure_chat_model(models, form_type, allow_missing=False):
+    """Retarget managed chat roles while preserving names, prompts and grants."""
+    targets = []
+    for model_id, (role, base_id) in MODEL_PRESETS.items():
+        if role == "Image Generation":
+            continue
+        model = await resolve(models.get_model_by_id(model_id))
+        if model is None:
+            if allow_missing:
+                continue
+            raise RuntimeError(f"Missing managed preset {model_id}; run apply_model_parameters.py.")
+        data = model.model_dump(exclude={"access_grants"})
+        if data.get("meta", {}).get("ai_stack_managed_by") != MANAGED_BY:
+            raise RuntimeError(f"Refusing to retarget unrelated model {model_id}")
+        if model.base_model_id != base_id:
+            data["base_model_id"] = base_id
+            targets.append((model_id, base_id, data))
+    for model_id, base_id, data in targets:
+        await resolve(models.update_model_by_id(model_id, form_type(**data)))
+        saved = await resolve(models.get_model_by_id(model_id))
+        if saved is None or saved.base_model_id != base_id:
+            raise RuntimeError(f"Failed to retarget chat model {model_id}; safe to rerun.")
+
+
 # Explicit/manual execution reapplies names, system prompts and managed sampling.
 # Normal restarts call bootstrap_once instead to preserve later user edits.
 async def apply_names(models, users, form_type, skip_without_admin=False, grants=None):
@@ -367,6 +392,7 @@ async def apply_names(models, users, form_type, skip_without_admin=False, grants
     if owner is None or owner.role != "admin":
         raise RuntimeError("Create the initial Open WebUI admin account before applying model presets.")
     grants = access_store(grants)
+    await ensure_chat_model(models, form_type, allow_missing=True)
     for model_id, (name, base_model_id) in MODEL_PRESETS.items():
         existing = await resolve(models.get_model_by_id(model_id))
         if existing is not None:
@@ -428,9 +454,10 @@ async def bootstrap_once(models, users, form_type, config, grants=None):
     searched = await resolve(config.get(ALLROUND_WEB_SEARCH_KEY))
     image_enabled = await resolve(config.get(IMAGE_GENERATION_KEY))
     terminal_configured = await resolve(config.get(CODING_TERMINAL_KEY))
+    chat_migrated = await resolve(config.get(CHAT_MODEL_KEY))
     # Completed migrations do not enforce sharing continuously; later admin
     # changes persist until the helper is explicitly reapplied.
-    if initialized and shared and cached and searched and image_enabled and terminal_configured:
+    if initialized and shared and cached and searched and image_enabled and terminal_configured and chat_migrated:
         return True
     owner = await resolve(users.get_first_user())
     if owner is None:
@@ -440,9 +467,14 @@ async def bootstrap_once(models, users, form_type, config, grants=None):
     if not initialized:
         await apply_names(models, users, form_type, grants=grants)
         await resolve(config.upsert({BOOTSTRAP_KEY: True, PUBLIC_ACCESS_KEY: True,
-                                     PROMPT_CACHE_KEY: True}))
+                                     PROMPT_CACHE_KEY: True, CHAT_MODEL_KEY: True}))
         print("Initial model presets applied. Refresh Open WebUI to see them.", flush=True)
     else:
+        if not chat_migrated:
+            await ensure_chat_model(models, form_type)
+            await ensure_public_access(models, users, form_type, grants)
+            await resolve(config.upsert({CHAT_MODEL_KEY: True, PUBLIC_ACCESS_KEY: True}))
+            shared = True
         if not shared:
             await ensure_public_access(models, users, form_type, grants)
             await resolve(config.upsert({PUBLIC_ACCESS_KEY: True}))

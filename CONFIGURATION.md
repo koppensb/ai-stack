@@ -203,11 +203,11 @@ review:
   monitors only the main router, so it cannot unload this service's model.
 - `LLAMA_CPP_IMAGE_THREADS` controls both generation and prompt-processing CPU
   threads. `--batch-size` uses the shared `LLAMA_CPP_BATCH_SIZE` independently.
-- The Image Generation workspace preset references
-  `mradermacher/Qwen3.5-4B-Q4_K_M.gguf`, while its router section and external task
-  setting use `Qwen3.5-4B`. Verify the live `/v1/models` output and align the IDs
-  before assuming this workspace preset can resolve its base model. Public
-  grants do not repair a backend model-ID mismatch.
+- All chat workspace presets use `Qwen3.8-27B`. Existing managed chat presets
+  migrate once at startup, tracked by `ai_stack.model_presets.qwen38_chat_v1`,
+  preserving custom prompts and settings.
+- The Image Generation workspace preset, dedicated router and external task
+  setting all use `Qwen3.5-4B`.
 
 ## Repository housekeeping
 

@@ -145,6 +145,80 @@ class PublicAccessTests(unittest.IsolatedAsyncioTestCase):
             await self.boot()
         self.assertEqual(self.grants.rows, {})
 
+    async def test_chat_migration_preserves_edits_and_image_model(self):
+        await self.boot()
+        self.config.values.pop(presets.CHAT_MODEL_KEY)
+        for key in ('ai-stack-allround', 'ai-stack-creativ'):
+            self.models.rows[key].base_model_id = 'previous-chat-model'
+            self.models.rows[key].params = {'system': 'Custom prompt', 'temperature': 0.12}
+            self.models.rows[key].name = 'Custom name'
+        before = copy.deepcopy(self.models.rows)
+        grants = copy.deepcopy(self.grants.rows)
+        await self.boot()
+        for key in ('ai-stack-allround', 'ai-stack-creativ'):
+            before[key].base_model_id = 'Qwen3.8-27B'
+        self.assertEqual(self.models.rows, before)
+        self.assertEqual(self.grants.rows, grants)
+        self.assertTrue(self.config.values[presets.CHAT_MODEL_KEY])
+        await self.boot()
+        self.assertEqual(self.models.rows, before)
+
+    async def test_chat_migration_failure_retries(self):
+        await self.boot()
+        self.config.values.pop(presets.CHAT_MODEL_KEY)
+        self.models.rows['ai-stack-allround'].base_model_id = 'previous-chat-model'
+        update = self.models.update_model_by_id
+        self.models.update_model_by_id = lambda key, form: None
+        with self.assertRaisesRegex(RuntimeError, 'Failed to retarget'):
+            await self.boot()
+        self.assertNotIn(presets.CHAT_MODEL_KEY, self.config.values)
+        self.models.update_model_by_id = update
+        await self.boot()
+        self.assertTrue(self.config.values[presets.CHAT_MODEL_KEY])
+
+    async def test_chat_migration_validates_before_writing(self):
+        await self.boot()
+        self.config.values.pop(presets.CHAT_MODEL_KEY)
+        self.models.rows['ai-stack-allround'].base_model_id = 'previous-chat-model'
+        self.models.rows['ai-stack-creativ'].meta = {}
+        before = copy.deepcopy(self.models.rows)
+        with self.assertRaisesRegex(RuntimeError, 'unrelated model'):
+            await self.boot()
+        self.assertEqual(self.models.rows, before)
+        self.assertNotIn(presets.CHAT_MODEL_KEY, self.config.values)
+
+    async def test_chat_migration_waits_for_shared_base_access(self):
+        await self.boot()
+        self.config.values.pop(presets.CHAT_MODEL_KEY)
+        self.models.rows['ai-stack-allround'].base_model_id = 'previous-chat-model'
+        self.grants.rows.pop('Qwen3.8-27B')
+        self.grants.fail_id = 'Qwen3.8-27B'
+        with self.assertRaisesRegex(RuntimeError, 'Failed to grant'):
+            await self.boot()
+        self.assertNotIn(presets.CHAT_MODEL_KEY, self.config.values)
+        self.grants.fail_id = None
+        await self.boot()
+        self.assertTrue(self.config.values[presets.CHAT_MODEL_KEY])
+        self.assertTrue(self.grants.rows['Qwen3.8-27B'])
+
+    def test_download_plan_matches_shared_chat_and_image_presets(self):
+        root = PATH.parents[2]
+        spec = importlib.util.spec_from_file_location('downloads', root / 'scripts/download_models.py')
+        downloads = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(downloads)
+        chat = downloads.chat_plan(root / 'config/llama-cpp/models.ini')
+        image = downloads.chat_plan(root / 'config/llama-cpp-image/models.ini')
+        self.assertEqual([name for name, _ in chat], ['Qwen3.8-27B'])
+        self.assertEqual([name for name, _ in image], ['Qwen3.5-4B'])
+        for role, base in presets.MODEL_PRESETS.values():
+            self.assertEqual(base, image[0][0] if role == 'Image Generation' else chat[0][0])
+
+    async def test_manual_reapply_retargets_existing_chat_roles(self):
+        await self.apply()
+        self.models.rows['ai-stack-allround'].base_model_id = 'previous-chat-model'
+        await self.apply()
+        self.assertEqual(self.models.rows['ai-stack-allround'].base_model_id, 'Qwen3.8-27B')
+
     async def test_waits_for_admin(self):
         self.users.get_first_user = lambda: None
         self.assertFalse(await self.boot())
@@ -162,7 +236,7 @@ class PublicAccessTests(unittest.IsolatedAsyncioTestCase):
         self.models = SimpleNamespace(get_model_by_id=get, insert_new_model=insert,
                                       update_model_by_id=update)
         self.assertTrue(await self.boot())
-        self.assertEqual(len(original.rows), 8)
+        self.assertEqual(len(original.rows), 6)
 
 
     async def test_cache_migration_preserves_customizations_and_grants(self):

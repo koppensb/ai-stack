@@ -508,7 +508,7 @@ Compose secrets use the host file permissions; root/docker ownership with mode
 The router presets are defined in `config/llama-cpp/models.ini`. Each section is
 a model ID accepted by the OpenAI-compatible API. The installer prefetches every
 preset, including MTP heads and automatically selected vision projectors, into
-`data/llama-cpp`. All three presets keep `load-on-startup = false`: files are
+`data/llama-cpp`. The shared chat model keeps `load-on-startup = false`: files are
 available locally, but enter GPU memory only when requested. The first inference
 still needs time to load the weights. For manual setup or after adding presets,
 build the images and run:
@@ -1125,8 +1125,8 @@ an Open WebUI version with the access-grants API.
 | Display name | Loaded model | Temperature | Top P | Top K |
 | --- | --- | --- | --- | --- |
 | Coding | Qwen3.8-27B | 0.6 | 0.90 | 20 |
-| Allround | Qwen3.6-35B-A3B | 0.7 | 0.90 | 40 |
-| Creativ | Gemma-4-31B | 1.0 | 0.95 | 64 |
+| Allround | Qwen3.8-27B | 0.7 | 0.90 | 40 |
+| Creativ | Qwen3.8-27B | 1.0 | 0.95 | 64 |
 | Image Generation | Qwen3.5-4B | 0.9 | 0.90 | 20 |
 
 These are adjustable role defaults, not manufacturer-optimal settings. Unlisted
@@ -1161,16 +1161,22 @@ The presets use separate IDs: `ai-stack-coding`, `ai-stack-allround`,
 model via `base_model_id`. Original models remain selectable with their original
 names and default settings. Missing base-model entries are registered with empty
 parameters so regular users can access them; existing base-model entries are
-preserved. All four presets and their four base models receive public read grants
+preserved. All four presets and their two base models receive public read grants
 (`user:*`, `read`). Existing grants are retained; no new write or anonymous access
 is granted. Users must still have an approved account and the applicable feature
 permissions for web search or image generation.
-The main chat preset API IDs match the router section names. Image Generation's
-configured base ID is `mradermacher/Qwen3.5-4B-Q4_K_M.gguf`, while the dedicated
-router section and `TASK_MODEL_EXTERNAL` use `Qwen3.5-4B`. These are different
-identifiers: check the deployed `/v1/models` response before relying on the
-workspace preset. Sharing grants alone cannot make an unavailable API ID usable.
-This documentation review does not change either identifier.
+All three chat presets use the router API ID `Qwen3.8-27B` (Qwen 3.8 27B).
+Image Generation keeps `Qwen3.5-4B`, matching its dedicated router and
+`TASK_MODEL_EXTERNAL`.
+
+Existing installations migrate the managed chat presets automatically on the
+next Open WebUI startup. The one-time marker
+`ai_stack.model_presets.qwen38_chat_v1` tracks this change. The migration preserves
+custom names, prompts, sampling settings and existing grants; it verifies read
+access to the shared base model before recording completion. Downloads now
+prefetch only the shared chat model, the image-prompt model and the ComfyUI assets.
+Previously cached model files are not automatically deleted.
+
 The script updates only presets bearing its management marker and refuses to
 replace unrelated models with colliding IDs. It does not remove legacy database
 entries. If an older name-override script was already applied to the live database,

@@ -34,8 +34,8 @@ For file responsibilities, configuration precedence, and workflow formats, see
    workflow schemas, applies Open WebUI image and terminal settings, and validates Prometheus.
 10. Enables automatic model-preset initialization after admin signup and systemd autostart.
 
-The main router exposes the IDs `Qwen3.8-27B`, `Qwen3.6-35B-A3B`, and
-`Gemma-4-31B`; workspace display names are configured separately.
+The main router exposes only `Qwen3.8-27B`, shared by Coding, Allround and
+Creativ; workspace display names are configured separately.
 On a new installation, create the first Open WebUI administrator. The four additional
 models (Coding, Allround, Creativ, Image Generation) are created automatically,
 normally within five seconds. Refresh the browser afterwards. Original models
