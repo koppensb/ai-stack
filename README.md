@@ -327,7 +327,7 @@ sudo bash /path/to/ai-stack/install_ai_stack.sh --host 192.168.1.50
 Replace the IP address with the Ubuntu VM's IP or DNS name. The installer uses
 its own directory as the source and deploys to `/opt/ai-stack`. It installs
 Docker, Compose, Buildx and AMD Container Toolkit, creates credentials and TLS,
-builds both ROCm images, downloads every chat preset and all five Qwen image
+builds both ROCm images, downloads every chat preset and all three Qwen image
 assets, checks startup and enables systemd autostart.
 Only files listed in `scripts/deployment_files.txt` are copied into `/opt/ai-stack`.
 Installer scripts, setup helpers, tests, templates and documentation stay in the
@@ -518,7 +518,7 @@ sudo python3 /path/to/ai-stack/scripts/download_models.py --root /opt/ai-stack -
 sudo python3 /path/to/ai-stack/scripts/download_models.py --root /opt/ai-stack
 ```
 
-The second command downloads chat presets and all five image assets. It uses
+The second command downloads chat presets and all three image assets. It uses
 `llama download` in the same image and cache as the router, without starting
 inference. A recent llama.cpp version with the unified `llama` application and
 `download --mtp` support is required; the Dockerfile checks the application at
@@ -738,7 +738,7 @@ ComfyUI data is persistent under `data/comfyui/`. Put checkpoints in
 
 ### GGUF Models in ComfyUI
 
-The image includes [ComfyUI-GGUF](https://github.com/city96/ComfyUI-GGUF)
+The image includes [ComfyUI-GGUF](https://github.com/leejet/ComfyUI-GGUF)
 and its Python dependencies. Bundled nodes live in
 `/opt/comfyui-bundled-nodes` and are registered through ComfyUI's
 `extra_model_paths.yaml`, so the persistent `custom_nodes` mount does not hide
@@ -758,7 +758,7 @@ After updating the stack files, rebuild and recreate ComfyUI on the GPU host:
 ```bash
 sudo docker compose up -d --build --no-deps comfyui
 sudo docker compose logs --tail=100 comfyui
-sudo docker compose exec -T comfyui python -c 'import json, urllib.request; nodes = json.load(urllib.request.urlopen("http://localhost:8188/object_info")); assert "UnetLoaderGGUF" in nodes and "CLIPLoaderGGUF" in nodes; print("GGUF loaders available")'
+sudo docker compose exec -T comfyui python -c 'import json, urllib.request; nodes = json.load(urllib.request.urlopen("http://localhost:8188/object_info")); assert "UnetLoaderGGUF" in nodes and "CLIPLoader" in nodes and "TextEncodeQwenImage21" in nodes; print("GGUF loaders available")'
 ```
 
 `COMFYUI_GGUF_REF` defaults to `main`; set it to a commit SHA in `.env` for
@@ -1087,7 +1087,7 @@ With `ENABLE_IMAGE_PROMPT_GENERATION=true`, Open WebUI uses the external task
 model `llama-cpp-image` to expand the image request into a description, in English
 unless the user explicitly requests another prompt language.
 The template returns the JSON `prompt` field expected by Open WebUI, which then
-passes that description through the existing ComfyUI workflow to Qwen-Image-2512.
+passes that description through the existing ComfyUI workflow to Qwen-Image-2.1.
 Select image generation in the chat to use this path; ordinary chat messages
 remain ordinary chat messages. Visible text requested for the image retains its
 original language. Open WebUI's external task model is shared with other tasks,
@@ -1234,8 +1234,8 @@ Open WebUI submits its existing API graph with every generation/edit request;
 it does not need a saved workflow in ComfyUI's user folder. Native editor
 workflows are now also included in `config/comfyui/workflows`:
 
-- `unsloth_qwen_image_2512.json`: text-to-image generation.
-- `unsloth_qwen_image_edit_2511.json`: editing with two uploaded references.
+- `unsloth_qwen_image_2_1.json`: text-to-image generation.
+- `unsloth_qwen_image_2_1_edit.json`: editing with two uploaded references.
 
 Compose mounts this directory read-only at
 `/opt/ComfyUI/user/default/workflows/ai-stack`, inside the persisted user tree.
@@ -1244,12 +1244,12 @@ these JSON files. Use **Save As** outside the managed folder to retain an editab
 copy. Existing user workflows are preserved.
 
 For editing, upload your own images in both reference nodes before running;
-`reference-1.png` and `reference-2.png` are placeholders. The tutorial's unused
-third reference requirement is removed, and the GGUF text encoder is explicitly
-set to `qwen_image`. The workflows use the same model filenames as the installer,
-Euler/simple sampling, 40 steps, CFG 4 and a sampling shift of 3.1. Generation
-starts at 1024×1024; the editing workflow resizes the first reference to that
-size and the second to 768×768, following the tutorial's example.
+`reference-1.png` and `reference-2.png` are placeholders. Both references feed
+`TextEncodeQwenImage21`; the first determines the output canvas. The workflows
+use the same shared diffusion GGUF, Qwen3-VL BF16 encoder and Qwen Image 2.1 VAE
+as the installer. Both use Euler/simple sampling, 40 steps and CFG 1. Generation
+starts at 1024x1024; editing preserves the first reference's aspect ratio at about
+one megapixel, rounded to multiples of 32.
 
 To add the native workflows to an existing deployment, run the updated installer
 with `--update-files`. For a manual update, copy `config/comfyui/workflows` into
@@ -1265,83 +1265,70 @@ if the deployed image already has the required Qwen/GGUF nodes. An empty native
 workflow list alone does not diagnose an Open WebUI image-generation failure;
 check its saved image settings and ComfyUI logs as described below.
 
-The image workflows follow the [Unsloth Qwen-Image guide](https://unsloth.ai/docs/models/tutorials/qwen-image-2512)
-with GGUF diffusion models, the Qwen2.5-VL text encoder and its matching vision
-tower, and the shared Qwen image VAE. No Lightning LoRA is required.
+The image workflows follow the [official Qwen Image 2.1 ComfyUI templates](https://huggingface.co/Comfy-Org/Qwen-Image-2.1)
+with the [Unsloth Q4_K_M diffusion GGUF](https://huggingface.co/unsloth/Qwen-Image-2.1-GGUF).
+Generation and editing share one model. `TextEncodeQwenImage21` creates both
+conditioning outputs; editing also uses its empty latent matched to the first
+reference. The older sampling-shift and CFG-normalization nodes are unnecessary.
+The bundled GGUF extension uses the leejet fork for `qwen_image21` support.
+Rebuild ComfyUI when upgrading; restarting the old image is insufficient.
 
-| Operation | API workflow | Open WebUI input mapping |
+| Mode | API workflow | Request mappings |
 | --- | --- | --- |
-| Generate | `config/openwebui/qwen-image-2512_image.json` | `qwen-image-2512_nodes.json` |
-| Edit | `config/openwebui/qwen-image-edit-2511_image.json` | `qwen-image-edit-2511_nodes.json` |
+| Generate | `config/openwebui/qwen-image-2.1_image.json` | `qwen-image-2.1_nodes.json` |
+| Edit | `config/openwebui/qwen-image-2.1-edit_image.json` | `qwen-image-2.1-edit_nodes.json` |
 
-`config/openwebui/start.py` loads both workflows into the generation and editing
-environment settings before starting Open WebUI. Compose mounts this directory
-into Open WebUI and runs the wrapper there.
-
-Generation defaults to **1024 × 1024**; editing preserves the uploaded aspect
-ratio at approximately **2 megapixels**. Both use **40 steps**, **Euler/simple**, CFG 4 and sampling
-shift 3.1. The negative prompt is initially empty and can be changed in the
-workflow. If results look blurry, try shift 12–13 as suggested by Unsloth.
-The edit workflow uses `TextEncodeQwenImageEditPlus` with one uploaded reference
-image, scaled with Lanczos without cropping. Node 13 uses
-`ImageScaleToTotalPixels` with `megapixels: 2.0` and `resolution_steps: 16`.
-Dimensions are rounded to multiples of 16 for latent compatibility, so the aspect
-ratio can differ slightly. Higher megapixel values require more memory and time. Upload one
-reference per edit in Open WebUI. For multi-reference work in ComfyUI, add image
-loaders and connect `image2`/`image3` to both conditioning nodes. The single-image
-API template does not automatically map additional uploads.
+`config/openwebui/start.py` loads these files before starting Open WebUI.
+Generation defaults to **1024x1024**, editing to about **one megapixel** at the
+reference aspect ratio. Both use **40 steps**, **Euler/simple**, **CFG 1** and
+full denoising. Negative conditioning is connected but inactive at CFG 1.
 
 | Input | Generate node/key | Edit node/key |
 | --- | --- | --- |
 | Model | 1 / unet_name | 1 / unet_name |
-| Prompt | 6 / text | 6 / prompt |
+| Prompt | 6 / prompt | 6 / prompt |
 | Reference image | — | 12 / image |
-| Width, height | 8 / width, height | Not mapped; derived from the reference aspect ratio |
+| Width, height | 8 / width, height | Derived from the first reference |
 | Steps | 9 / steps | Fixed at 40 in node 9 |
 | Seed | 9 / seed | 9 / seed |
 | Batch count | 8 / batch_size | One edited image |
 
-Open WebUI's edit adapter does not supply a steps value, so it is intentionally
-not mapped. Keep `IMAGE_EDIT_SIZE` set to an explicit size such as `1024x1024`
-for Open WebUI request compatibility; it no longer controls this workflow's output
-dimensions. Change node 13's `megapixels` value in the edit API JSON to adjust
-resolution. Deploy workflow changes with the installer's `--update-files` option.
-Edit outputs use full denoising with the original image supplied to Qwen's
-reference conditioning. To use the API edit JSON directly in ComfyUI, load it
-and choose an existing file in the `LoadImage` node (`reference.png` is a
-placeholder replaced automatically by Open WebUI uploads).
+Open WebUI maps one uploaded reference. The native editor workflow accepts two.
+For additional native references, connect image loaders to the dynamic
+`images.image_N` inputs and refer to them as `<image1>`, `<image2>`, etc.
+The edit adapter does not supply steps. Keep `IMAGE_EDIT_SIZE=1024x1024` for
+request compatibility; actual dimensions come from node 6's `resolution=1024`
+and the reference aspect ratio. Increase `resolution` to 2048 for about four
+megapixels, at higher memory and runtime cost. Dimensions are rounded to multiples
+of 32. `reference.png` is an upload placeholder replaced by Open WebUI.
 
 ### Model files and deployment
 
-The installer downloads these five files automatically before startup through
-`scripts/download_models.py`, which also handles all chat presets. Existing
-completed files are retained and interrupted `.part` files resume. The ComfyUI
-model directory is resolved from the deployed Compose configuration.
+The installer downloads these three files through `scripts/download_models.py`:
 
-- `unet/qwen-image-2512-Q4_K_M.gguf`
-- `unet/qwen-image-edit-2511-Q4_K_M.gguf`
-- `text_encoders/Qwen2.5-VL-7B-Instruct-UD-Q4_K_XL.gguf`
-- `text_encoders/Qwen2.5-VL-7B-Instruct-mmproj-BF16.gguf`
-- `vae/qwen_image_vae.safetensors`
+- `unet/qwen-image-2.1-Q4_K_M.gguf`
+- `text_encoders/qwen3vl_8b_bf16.safetensors`
+- `vae/qwen_image_2.1_vae_bf16.safetensors`
 
-Do not rename the vision tower to plain `mmproj-BF16.gguf`: the GGUF loader
-matches it to the text encoder by filename prefix. ComfyUI `v0.34.0` and the
-bundled ComfyUI-GGUF nodes provide the required Qwen node types. Update/rebuild
-the GGUF extension if your deployed image predates its Qwen vision support.
+The BF16 encoder includes the vision components; no separate vision projector is
+needed. It is larger than the previous quantized encoder. The installer retains
+completed files and resumes interrupted `.part` downloads. Previously cached
+models are not deleted automatically. ComfyUI v0.37.0 includes the required nodes;
+the build checks for the new encoder node and GGUF architecture support.
 
 For automated migration, run the updated installer with `--update-files` from
 the source tree. It downloads the models, validates the ComfyUI graph and applies
-the image settings to Open WebUI. The known legacy FLUX generation model and
-its old default size are migrated automatically. For manual migration, copy
+the image settings to Open WebUI. The previous bundled image model filenames are migrated to the unified model
+automatically; custom model selections are preserved. For manual migration, copy
 the updated Compose file and complete `config/openwebui/` directory, then update
 these values in the deployed `.env`, preserving other settings/secrets:
 
 ```dotenv
-IMAGE_GENERATION_MODEL=qwen-image-2512-Q4_K_M.gguf
+IMAGE_GENERATION_MODEL=qwen-image-2.1-Q4_K_M.gguf
 IMAGE_SIZE=1024x1024
 IMAGE_STEPS=40
 ENABLE_IMAGE_EDIT=true
-IMAGE_EDIT_MODEL=qwen-image-edit-2511-Q4_K_M.gguf
+IMAGE_EDIT_MODEL=qwen-image-2.1-Q4_K_M.gguf
 IMAGE_EDIT_SIZE=1024x1024
 ```
 
@@ -1385,7 +1372,7 @@ sudo rm -f -- data/comfyui/models/unet/flux2-dev-Q4_K_M.gguf \
 The schema check validates installed nodes, model filenames and graph links;
 it does not allocate GPU models. Verify runtime behavior with one image
 creation and one edit using an uploaded reference. Inspect ComfyUI and Open
-WebUI logs for model loading, missing vision tower or VRAM errors.
+WebUI logs for model loading, missing model files or VRAM errors.
 
 The existing Open WebUI document defaults remain hybrid retrieval, five results,
 1,000-character chunks and 150-character overlap. Existing chunks require
@@ -1393,8 +1380,8 @@ re-indexing to change their split sizes. Use HTTPS through NGINX on port 8443;
 new accounts default to `pending`, and image prompt rewriting is enabled by the
 example configuration (saved admin settings can override that default).
 
-References: [ComfyUI Qwen nodes](https://github.com/Comfy-Org/ComfyUI/blob/v0.34.0/comfy_extras/nodes_qwen.py),
-[GGUF loader](https://github.com/city96/ComfyUI-GGUF/blob/main/loader.py),
+References: [ComfyUI Qwen nodes](https://github.com/Comfy-Org/ComfyUI/blob/v0.37.0/comfy_extras/nodes_qwen.py),
+[GGUF loader](https://github.com/leejet/ComfyUI-GGUF/blob/main/loader.py),
 [Open WebUI image mappings](https://github.com/open-webui/open-webui/blob/main/backend/open_webui/utils/images/comfyui.py).
 
 ---

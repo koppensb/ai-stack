@@ -162,6 +162,19 @@ if [[ "$SOURCE" != "$TARGET" ]]; then
     backup="$TARGET/.installer-backups/$(date +%Y%m%d%H%M%S)-$$"
     install -d -m 0700 "$backup"
     rsync -ar --checksum --backup --backup-dir="$backup" --files-from="$MANIFEST" "$SOURCE/" "$TARGET/"
+    # Retire only the replaced managed workflows; retain backups and user workflows.
+    for retired in \
+      config/openwebui/qwen-image-2512_image.json \
+      config/openwebui/qwen-image-2512_nodes.json \
+      config/openwebui/qwen-image-edit-2511_image.json \
+      config/openwebui/qwen-image-edit-2511_nodes.json \
+      config/comfyui/workflows/unsloth_qwen_image_2512.json \
+      config/comfyui/workflows/unsloth_qwen_image_edit_2511.json; do
+      if [[ -f "$TARGET/$retired" ]]; then
+        install -d -m 0700 "$backup/$(dirname "$retired")"
+        mv "$TARGET/$retired" "$backup/$retired"
+      fi
+    done
   else
     rsync -ar --ignore-existing --files-from="$MANIFEST" "$SOURCE/" "$TARGET/"
   fi
@@ -252,9 +265,16 @@ if 'LLAMA_CPP_IMAGE_CTX_SIZE' not in present_names:
     updates['ENABLE_IMAGE_PROMPT_GENERATION'] = 'true'
 # Migrate only the exact obsolete bundled image defaults; preserve custom values.
 if values.get('IMAGE_GENERATION_MODEL') == 'flux2-dev-Q4_K_M.gguf':
-    updates['IMAGE_GENERATION_MODEL'] = 'qwen-image-2512-Q4_K_M.gguf'
+    updates['IMAGE_GENERATION_MODEL'] = 'qwen-image-2.1-Q4_K_M.gguf'
     if values.get('IMAGE_SIZE') == '1104x1472':
         updates['IMAGE_SIZE'] = '1024x1024'
+# Upgrade the bundled generation/editing pair to the unified image model.
+for image_key, previous in (
+    ('IMAGE_GENERATION_MODEL', 'qwen-image-2512-Q4_K_M.gguf'),
+    ('IMAGE_EDIT_MODEL', 'qwen-image-edit-2511-Q4_K_M.gguf'),
+):
+    if values.get(image_key) == previous:
+        updates[image_key] = 'qwen-image-2.1-Q4_K_M.gguf'
 updates['HF_TOKEN'] = hf_token
 search_secret = values.get('SEARXNG_SECRET', '')
 updates['SEARXNG_SECRET'] = (secrets.token_hex(32)

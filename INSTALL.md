@@ -28,8 +28,8 @@ For file responsibilities, configuration precedence, and workflow formats, see
 6. Builds llama.cpp and ComfyUI and pulls the other service images.
 7. Downloads every chat preset from `config/llama-cpp/models.ini`, including MTP
    heads and automatically selected vision projectors, into `data/llama-cpp`.
-8. Downloads Qwen-Image-2512, Qwen-Image-Edit-2511, their shared text encoder,
-   vision tower and VAE into `data/comfyui/models`.
+8. Downloads the shared Qwen-Image-2.1 Q4_K_M model, Qwen3-VL BF16 text/vision
+   encoder and Qwen Image 2.1 VAE into `data/comfyui/models`.
 9. Recreates services, waits for readiness, checks ComfyUI GPU access and Qwen
    workflow schemas, applies Open WebUI image and terminal settings, and validates Prometheus.
 10. Enables automatic model-preset initialization after admin signup and systemd autostart.

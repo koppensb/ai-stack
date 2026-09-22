@@ -11,7 +11,7 @@
     "node_ids": [
       "6"
     ],
-    "key": "text"
+    "key": "prompt"
   },
   {
     "type": "width",

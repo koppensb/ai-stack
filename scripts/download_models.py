@@ -12,18 +12,14 @@ from pathlib import Path
 import subprocess
 
 
-# Keep the vision tower prefix aligned with the text encoder for GGUF discovery.
+# One diffusion model serves generation and editing; the encoder includes vision.
 IMAGE_ASSETS = (
-    ('unet/qwen-image-2512-Q4_K_M.gguf',
-     'https://huggingface.co/unsloth/Qwen-Image-2512-GGUF/resolve/main/qwen-image-2512-Q4_K_M.gguf'),
-    ('unet/qwen-image-edit-2511-Q4_K_M.gguf',
-     'https://huggingface.co/unsloth/Qwen-Image-Edit-2511-GGUF/resolve/main/qwen-image-edit-2511-Q4_K_M.gguf'),
-    ('text_encoders/Qwen2.5-VL-7B-Instruct-UD-Q4_K_XL.gguf',
-     'https://huggingface.co/unsloth/Qwen2.5-VL-7B-Instruct-GGUF/resolve/main/Qwen2.5-VL-7B-Instruct-UD-Q4_K_XL.gguf'),
-    ('text_encoders/Qwen2.5-VL-7B-Instruct-mmproj-BF16.gguf',
-     'https://huggingface.co/unsloth/Qwen2.5-VL-7B-Instruct-GGUF/resolve/main/mmproj-BF16.gguf'),
-    ('vae/qwen_image_vae.safetensors',
-     'https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_image_vae.safetensors'),
+    ('unet/qwen-image-2.1-Q4_K_M.gguf',
+     'https://huggingface.co/unsloth/Qwen-Image-2.1-GGUF/resolve/main/qwen-image-2.1-Q4_K_M.gguf'),
+    ('text_encoders/qwen3vl_8b_bf16.safetensors',
+     'https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/text_encoders/qwen3vl_8b_bf16.safetensors'),
+    ('vae/qwen_image_2.1_vae_bf16.safetensors',
+     'https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/vae/qwen_image_2.1_vae_bf16.safetensors'),
 )
 
 
@@ -114,7 +110,7 @@ def main():
             for name, flags in chat_plan(root/f'config/{service}/models.ini')]
     for service, name, _ in plan:
         print('Chat model: ' + name, flush=True)
-    print('Image assets: Qwen generation, editing, text encoder, vision tower and VAE', flush=True)
+    print('Image assets: Qwen Image 2.1 shared generation/editing model, Qwen3-VL encoder and VAE', flush=True)
     if args.plan:
         return
     command = compose_command(root)
@@ -123,8 +119,8 @@ def main():
     # Resolve configuration privately, using exactly the same interpolation as Compose.
     config = json.loads(subprocess.check_output(command + ['config', '--format', 'json'], env=env))
     image_env = config['services']['openwebui']['environment']
-    expected = {'IMAGE_GENERATION_MODEL': 'qwen-image-2512-Q4_K_M.gguf',
-                'IMAGE_EDIT_MODEL': 'qwen-image-edit-2511-Q4_K_M.gguf'}
+    expected = {'IMAGE_GENERATION_MODEL': 'qwen-image-2.1-Q4_K_M.gguf',
+                'IMAGE_EDIT_MODEL': 'qwen-image-2.1-Q4_K_M.gguf'}
     for key, value in expected.items():
         if image_env.get(key) != value:
             raise ValueError(f'{key} does not match the bundled Qwen workflows; update .env and the download manifest together.')

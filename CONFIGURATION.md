@@ -98,65 +98,46 @@ JSON; use this guide and the existing editor Note nodes for explanations.
 
 ### Open WebUI API graphs
 
-`config/openwebui/qwen-image-2512_image.json` and
-`config/openwebui/qwen-image-edit-2511_image.json` map node IDs to `class_type`
+`config/openwebui/qwen-image-2.1_image.json` and
+`config/openwebui/qwen-image-2.1-edit_image.json` map node IDs to `class_type`
 and named `inputs`. A link such as `["9", 0]` means output index 0 of node 9.
-Node IDs are local to that graph, not the IDs in the native editor files.
+Node IDs are local to that graph; request mappings refer only to the API graphs.
 
 | Nodes | Role |
 | --- | --- |
 | 1, 2, 3 | Load diffusion GGUF, Qwen text encoder, and VAE respectively |
-| 4, 5 | Apply sampling shift (3.1) and CFG normalization (strength 1.0) |
-| 6, 7 | Positive and negative conditioning; the negative text starts empty |
-| 8 | Allocate empty latent for generation; encode the reference image for editing |
-| 9 | Sample with 40 steps, CFG 4, Euler/simple, and denoise 1.0 |
-| 10, 11 | Decode the latent and save the result under the configured filename prefix |
-| 12, 13 (editing only) | Load the uploaded image, then scale without cropping to about 2 megapixels |
+| 6 | `TextEncodeQwenImage21`: positive/negative conditioning and reference-sized empty latent |
+| 8 (generation only) | Allocate an empty output latent |
+| 9 | Sample with 40 steps, CFG 1, Euler/simple, and denoise 1.0 |
+| 10, 11 | Decode and save the result |
+| 12 (editing only) | Load the uploaded reference |
 
-The corresponding `*_nodes.json` files tell Open WebUI where to insert request
-values. `type` identifies a request field, `node_ids` identifies targets, and
-`key` names the target input. Renumbering a graph requires updating these mappings.
+The `*_nodes.json` mappings insert model filenames into node 1's `unet_name`,
+prompts into node 6's `prompt`, and seeds into node 9's `seed`. Generation also
+maps steps to node 9 and width, height and batch size to node 8. Editing maps the
+uploaded image into node 12's `image`; its 40 steps remain fixed in the graph.
 
-| Request input | Generation node/input | Editing node/input |
-| --- | --- | --- |
-| Model filename | 1 / `unet_name` | 1 / `unet_name` |
-| Prompt | 6 / `text` | 6 / `prompt` |
-| Width and height | 8 / `width`, `height` | Not mapped; derived from the uploaded image |
-| Seed | 9 / `seed` | 9 / `seed` |
-| Steps | 9 / `steps` | Fixed in the graph |
-| Image count | 8 / `batch_size` | One reference-image result |
-| Uploaded reference | Not used | 12 / `image` |
+The edit encoder takes `images.image_1`, preserves the reference aspect ratio,
+and resizes to roughly `resolution * resolution` pixels, rounded to multiples
+of 32. `resolution=1024` yields about one megapixel. Its third output is the
+empty sampling latent with matching dimensions. `IMAGE_EDIT_SIZE` is required
+by Open WebUI but does not determine output dimensions. Extra uploads are not
+automatically mapped. The verifier understands the encoder's dynamic image inputs.
 
-`reference.png` is a placeholder replaced by an upload; it need not exist during
-schema validation. Edit node 13 uses `ImageScaleToTotalPixels` with Lanczos,
-`megapixels: 2.0`, and `resolution_steps: 16`. It retains the complete frame;
-rounding dimensions to multiples of 16 can slightly change the aspect ratio.
-Increase or decrease `megapixels` in the API JSON to control resolution and
-memory usage. `IMAGE_EDIT_SIZE` remains a valid explicit size for Open WebUI
-request compatibility but does not determine this graph's output size.
-The edit graph supplies the reference to both conditioning
-nodes and VAE encoding. Full denoising here does not remove the separate reference
-conditioning. Additional image uploads are not automatically mapped.
-
-Model filenames must match the download manifest and installed assets. In
-particular, the vision projector uses the text encoder's filename prefix for
-GGUF discovery. Changing one filename can require changes in several files.
+Both paths use one diffusion GGUF, a Qwen3-VL BF16 encoder including vision, and
+the Qwen Image 2.1 VAE. Model filenames must match the download manifest.
 
 ### Native ComfyUI editor workflows
 
-`config/comfyui/workflows/unsloth_qwen_image_2512.json` and
-`unsloth_qwen_image_edit_2511.json` contain editor `nodes`, `links`, widget values,
-layout, and notes. They are mounted read-only in the `ai-stack` workflow folder.
-Use Save As elsewhere for personal edits. These files do not replace Open WebUI's
-API graphs and are not consumed by its request-field mappings.
+`config/comfyui/workflows/unsloth_qwen_image_2_1.json` and
+`unsloth_qwen_image_2_1_edit.json` contain editor nodes, links and widget values.
+They are mounted read-only in the `ai-stack` workflow folder. Use Save As elsewhere
+for personal edits. They do not replace Open WebUI's API graphs.
 
-The generation template starts at 1024x1024. The native editing template requires
-two uploaded images: the first is resized to 1024x1024 and encoded as the output
-latent, while the second is resized to 768x768 for additional conditioning.
-The native resize nodes disable crop but use fixed dimensions; they are
-independent of the aspect-preserving Open WebUI edit graph described above.
-Both references feed positive and negative conditioning. Seed widgets default to
-randomization; retaining a seed helps compare changes with the same settings.
+Generation starts at 1024x1024. Native editing requires two uploaded references;
+both feed `TextEncodeQwenImage21`, while the first determines the output canvas.
+The same 1024-pixel resolution budget and sampling settings apply as in the API
+workflow. Seed widgets randomize by default; retain a seed for comparisons.
 
 ### Grafana dashboard JSON
 

@@ -44,12 +44,14 @@ RUN git clone --filter=blob:none https://github.com/Comfy-Org/ComfyUI.git \
     && python -m pip install -r requirements.txt \
     && python -c "import torch; assert torch.version.hip, 'ROCm-enabled PyTorch is required'; print('PyTorch', torch.__version__, 'ROCm', torch.version.hip)"
 
+# The leejet fork supports the qwen_image21 GGUF architecture.
 # Keep bundled nodes outside the bind-mounted custom_nodes directory.
 # Dependencies are installed at build time: backend-net has no Internet access.
-RUN git clone --filter=blob:none https://github.com/city96/ComfyUI-GGUF.git \
+RUN git clone --filter=blob:none https://github.com/leejet/ComfyUI-GGUF.git \
         /opt/comfyui-bundled-nodes/ComfyUI-GGUF \
     && cd /opt/comfyui-bundled-nodes/ComfyUI-GGUF \
     && git checkout --detach "${COMFYUI_GGUF_REF}" \
+    && python -c "from pathlib import Path; assert 'qwen_image21' in Path('loader.py').read_text(), 'Qwen Image 2.1 GGUF support required'" \
     && python -m pip install -r requirements.txt \
     && python -c "import gguf, torch; assert torch.version.hip, 'ROCm-enabled PyTorch is required'" \
     && printf 'bundled_nodes:\n  custom_nodes: /opt/comfyui-bundled-nodes\n' \
@@ -95,6 +97,8 @@ source = source.replace(anchor, cleanup + anchor)
 ast.parse(source)
 path.write_text(source)
 PY_HANDOFF
+
+RUN python -c "from pathlib import Path; assert 'class TextEncodeQwenImage21' in Path('comfy_extras/nodes_qwen.py').read_text(), 'Update ComfyUI for Qwen Image 2.1 support'"
 
 RUN mkdir -p input output user models custom_nodes
 

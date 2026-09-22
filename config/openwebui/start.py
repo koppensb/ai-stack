@@ -11,8 +11,8 @@ CONFIG = Path(__file__).resolve().parent
 # API-format graphs and mapping files must be edited together. Native ComfyUI
 # editor workflows in config/comfyui/workflows are separate assets.
 WORKFLOWS = {
-    "COMFYUI": "qwen-image-2512",
-    "IMAGES_EDIT_COMFYUI": "qwen-image-edit-2511",
+    "COMFYUI": "qwen-image-2.1",
+    "IMAGES_EDIT_COMFYUI": "qwen-image-2.1-edit",
 }
 
 

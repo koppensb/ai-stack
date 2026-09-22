@@ -14,9 +14,9 @@ config/grafana/provisioning/dashboards/dashboards.yml
 config/grafana/provisioning/dashboards/files/llama-cpp-inference-stack.json
 config/openwebui/start.py
 config/openwebui/apply_model_parameters.py
-config/openwebui/qwen-image-2512_image.json
-config/openwebui/qwen-image-2512_nodes.json
-config/openwebui/qwen-image-edit-2511_image.json
-config/openwebui/qwen-image-edit-2511_nodes.json
-config/comfyui/workflows/unsloth_qwen_image_2512.json
-config/comfyui/workflows/unsloth_qwen_image_edit_2511.json
+config/openwebui/qwen-image-2.1_image.json
+config/openwebui/qwen-image-2.1_nodes.json
+config/openwebui/qwen-image-2.1-edit_image.json
+config/openwebui/qwen-image-2.1-edit_nodes.json
+config/comfyui/workflows/unsloth_qwen_image_2_1.json
+config/comfyui/workflows/unsloth_qwen_image_2_1_edit.json
