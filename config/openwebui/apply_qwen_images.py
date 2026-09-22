@@ -6,7 +6,7 @@ import asyncio
 import json
 import os
 import sys
-from start import load_workflows, IMAGE_PROMPT_TEMPLATE
+from start import load_workflows, TASK_PROMPTS, TASK_MODEL_PARAMS
 
 
 # These per-key writes replace the managed image configuration on every run.
@@ -17,7 +17,8 @@ def settings():
         # The external task model also serves tasks such as title/tag generation;
         # this is an API model ID, not the selectable workspace preset name.
         "task.model.external": "Qwen3.5-4B",
-        "task.image.prompt_template": IMAGE_PROMPT_TEMPLATE,
+        "task.model.params": TASK_MODEL_PARAMS,
+        **{key: template for _, key, template in TASK_PROMPTS},
         "image_generation.enable": os.environ.get("ENABLE_IMAGE_GENERATION", "true").lower() == "true",
         "image_generation.prompt.enable": os.environ.get("ENABLE_IMAGE_PROMPT_GENERATION", "true").lower() == "true",
         "image_generation.engine": "comfyui",

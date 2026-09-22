@@ -1084,13 +1084,38 @@ it is not CPU-only. `LLAMA_CPP_IMAGE_CTX_SIZE` defaults to 16384 tokens.
 only the main router and does not unload this separate service's model.
 
 With `ENABLE_IMAGE_PROMPT_GENERATION=true`, Open WebUI uses the external task
-model `llama-cpp-image` to expand the image request into an English description.
+model `llama-cpp-image` to expand the image request into a description, in English
+unless the user explicitly requests another prompt language.
 The template returns the JSON `prompt` field expected by Open WebUI, which then
 passes that description through the existing ComfyUI workflow to Qwen-Image-2512.
 Select image generation in the chat to use this path; ordinary chat messages
 remain ordinary chat messages. Visible text requested for the image retains its
 original language. Open WebUI's external task model is shared with other tasks,
 so title/tag generation and similar tasks can also use this small model.
+Only Open WebUI task requests use `temperature=0.7`, `top_p=0.8` and
+`chat_template_kwargs.enable_thinking=false`, following the general non-thinking
+recommendation for [Qwen3.5-4B](https://huggingface.co/Qwen/Qwen3.5-4B).
+The startup wrapper supplies `TASK_MODEL_PARAMS` for new databases;
+`apply_qwen_images.py` persists the same settings as `task.model.params` for
+existing installations. This requires Open WebUI with `TASK_MODEL_PARAMS` support.
+The selectable workspace presets and llama.cpp model settings are unaffected.
+
+The managed task templates in `config/openwebui/start.py` configure:
+
+- Titles: approximately 3-6 words in the user's request language, ignoring code,
+  quotations, attachments and assistant replies when detecting that language.
+- Tags: 1-3 relevant tags using the same language rule, retaining technical names.
+- Follow-ups: up to three useful suggestions in the latest user request's language,
+  with no repeated questions or forced suggestions.
+- Search queries: up to three distinct queries in the language best suited to
+  authoritative sources, including English technical documentation and local sources.
+- Image prompts: the exact `Image Generation` system prompt, extended with the
+  task-specific requirement to return only `{"prompt": "..."}` without running tools.
+
+All five templates are supplied for new databases and saved for existing ones by
+`apply_qwen_images.py`. Deploy the updated `config/openwebui` files, run that helper
+using the settings command below, and restart Open WebUI to apply them. Previously
+saved chat titles are not renamed by this configuration change.
 
 The installer prefetches this GGUF along with the existing models. On first
 migration it enables image prompt generation; subsequent runs preserve the saved
