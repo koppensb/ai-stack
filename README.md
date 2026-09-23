@@ -537,6 +537,44 @@ Review the following settings before deployment:
   is already attached to `backend-net`. If it is unavailable, automatic VRAM
   discovery can fall back to AMD SMI, ROCm SMI, or sysfs.
 
+### Concurrent chats in Open WebUI
+
+`LLAMA_CPP_PARALLEL=2` allows two requests to the same main-router model to
+run concurrently, including separate chats from the same user. Continuous
+batching is explicitly enabled. Coding, Allround and Creativ share this model
+and its slots; extra requests wait for a free slot. `LLAMA_CPP_MODELS_MAX=1`
+limits loaded models, not concurrent requests to that model.
+
+The previous configuration hardcoded `--parallel 1`, serializing requests.
+The dedicated image-prompt/task service still uses one slot, so its title,
+image-prompt and other background tasks may queue independently.
+
+With fixed slots and the default non-unified KV cache, the total
+`LLAMA_CPP_CTX_SIZE=65536` is split into 32768 tokens per slot (prompt plus
+output). To retain 65536 tokens per slot with two slots, set the total to
+131072 only if sufficient VRAM is available. Concurrent generation shares GPU
+capacity and does not promise unchanged speed per chat. See the
+[llama.cpp server options](https://github.com/ggml-org/llama.cpp/tree/master/tools/server).
+
+For an existing deployment, copy the updated Compose file and add
+`LLAMA_CPP_PARALLEL=2` to its `.env`. The installer also backfills this variable
+from `.env.example` during updates. Then, on the GPU host in the deployment
+directory, apply the configuration when current requests have finished:
+
+```bash
+sudo docker compose --env-file .env config --quiet
+sudo docker compose up -d --no-deps --force-recreate llama-cpp
+```
+
+For installer-managed deployments, include
+`-f docker-compose.yml -f compose.install.yml` in both commands. A simple
+`restart` does not apply changed arguments; no image rebuild is required for
+this setting. Warm up the model, then start long answers in two separate chats
+using the same account. Verify overlapping generation and two active slot IDs
+in `docker compose logs -f llama-cpp`. If they still serialize, check the loaded
+model's effective arguments and any per-model `parallel` override before
+investigating Open WebUI. Runtime verification requires the deployed GPU host.
+
 The bundled ComfyUI image releases models and execution/allocator caches inside
 its prompt worker **before** publishing history and the final `executing` event.
 Open WebUI waits for that event before returning the generated image. This avoids

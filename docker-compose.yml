@@ -118,8 +118,10 @@ services:
       - q8_0
       - --flash-attn
       - "on"
+      # Concurrent chat requests per loaded model, across all users.
       - --parallel
-      - "1"
+      - ${LLAMA_CPP_PARALLEL:?Set LLAMA_CPP_PARALLEL in .env (see .env.example)}
+      - --cont-batching
       - --threads
       - "8"
       - --threads-batch
