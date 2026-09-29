@@ -130,8 +130,10 @@ def terminal_connection():
         "key": key,
         "auth_type": "bearer",
         "enabled": True,
-        # Shared workspace: administrators explicitly grant access to other users.
-        "config": {"access_grants": []},
+        # Shared workspace available to all approved, signed-in users.
+        "config": {"access_grants": [
+            {"principal_type": "user", "principal_id": "*", "permission": "read"},
+        ]},
     }
 
 

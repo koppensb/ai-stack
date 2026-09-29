@@ -58,7 +58,8 @@ reset presets after their initialization marker has been saved.
   parallel arrays; their indices must stay aligned. Existing unrelated endpoints
   are retained.
 - `config/openwebui/apply_open_terminal.py` merges by connection ID or URL. It
-  updates credentials while retaining existing grants and an intentional disable.
+  updates credentials and adds `user:*` read access for all signed-in users,
+  retaining existing grants, custom configuration and an intentional disable.
 - `config/openwebui/verify_qwen_workflows.py` compares API graph inputs and links
   with ComfyUI's `/object_info`. It checks model availability but does not run
   generation or prove that weights fit into GPU memory.

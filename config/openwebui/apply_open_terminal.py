@@ -5,16 +5,28 @@ from start import terminal_connection
 
 
 # Match either stable ID or URL to avoid duplicating a connection created by hand.
-# Credentials are refreshed from .env while existing user access remains intact.
+# Credentials are refreshed from .env and public read access is added.
 async def connection_settings(config):
     managed = terminal_connection()
     connections = list(await config.get("terminal_server.connections") or [])
     for index, connection in enumerate(connections):
         if connection.get("id") == managed["id"] or connection.get("url", "").rstrip("/") == managed["url"]:
-            # Keep identity, access grants, name and an intentional disable.
+            # Retain custom config and grants while sharing with all signed-in users.
+            saved_config = dict(connection.get("config") or {})
+            grants = list(saved_config.get("access_grants") or [])
+            for public_grant in managed["config"]["access_grants"]:
+                if not any(
+                    isinstance(grant, dict)
+                    and all(grant.get(key) == value for key, value in public_grant.items())
+                    for grant in grants
+                ):
+                    grants.append(public_grant)
+            saved_config["access_grants"] = grants
+            # Keep identity, name and an intentional disable.
             connections[index] = {**managed, **connection,
                                   "url": managed["url"], "key": managed["key"],
-                                  "auth_type": managed["auth_type"]}
+                                  "auth_type": managed["auth_type"],
+                                  "config": saved_config}
             break
     else:
         connections.append(managed)

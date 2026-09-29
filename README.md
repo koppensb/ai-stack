@@ -988,7 +988,8 @@ has no Docker socket or other stack-data mounts.
 Use the updated installer with `--update-files` to generate the shared API key,
 prepare directory permissions, pull the image and register the connection in an
 existing Open WebUI database (see [INSTALL.md](INSTALL.md)). Existing terminal
-connections and the managed connection's access grants/disabled state are retained.
+connections and existing grants are retained. The managed connection receives read
+access for all approved, signed-in users; an intentional disable is preserved.
 
 For manual deployments:
 
@@ -1011,8 +1012,9 @@ installations; the setup helper merges it into saved settings on existing ones.
 After changing the key, recreate both services and rerun the helper.
 
 Refresh Open WebUI and select **Open Terminal** in the chat. Use native function
-calling with a tool-capable model. Administrators have access initially; grant
-other trusted users access under **Settings → Admin → Integrations → Open Terminal**.
+calling with a tool-capable model. All approved, signed-in users have access by
+default. Permissions can be adjusted under **Settings → Admin → Integrations → Open Terminal**;
+rerunning the setup helper restores access for all signed-in users.
 This is a shared workspace for everyone granted access, not a separate container
 per user. Pin tested `OPEN_TERMINAL_VERSION` and `OPENWEBUI_VERSION` tags when
 reproducible upgrades are needed.

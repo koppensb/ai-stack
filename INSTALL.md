@@ -171,13 +171,14 @@ files resume; remove a corrupt completed file before retrying its download.
 
 The installer starts Open Terminal and registers it in Open WebUI, including
 existing databases. Select **Open Terminal** in a chat and use a model with native
-function calling. The connection initially permits administrators only; grant
-other trusted users access in **Settings → Admin → Integrations → Open Terminal**.
+function calling. The connection is available to all approved, signed-in users.
+Permissions can be adjusted in **Settings → Admin → Integrations → Open Terminal**.
 All users of this connection share `data/open-terminal` (`/home/user` in the
 container). The service has outbound network access and no published host port.
 Its key is generated once and preserved in `.env` as `OPEN_TERMINAL_API_KEY`;
-`OPEN_TERMINAL_VERSION` controls the image tag. Existing connection permissions
-and an intentional disable are preserved on installer reruns.
+`OPEN_TERMINAL_VERSION` controls the image tag. Installer reruns retain existing
+grants and add read access for all signed-in users. An intentional disable is
+preserved.
 
 ## Access and operations
 
