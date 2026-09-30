@@ -146,25 +146,22 @@ Response quality:
 # remain as saved; temperature/top_p/top_k affect variety, not factual guarantees.
 ROLE_PARAMS = {
     "Coding": {
-        "temperature": 0.6, "top_p": 0.9, "top_k": 20,
+        "temperature": 0.6, "top_p": 0.9, "top_k": 20, "repeat_penalty": 1.05,
         "system": CODING_SYSTEM_PROMPT,
     },
     "Allround": {
-        "temperature": 0.7, "top_p": 0.9, "top_k": 40,
+        "temperature": 0.7, "top_p": 0.9, "top_k": 40, "repeat_penalty": 1.05,
         "system": ALLROUND_SYSTEM_PROMPT,
     },
     "Creativ": {
-        "temperature": 1.0, "top_p": 0.95, "top_k": 64,
+        "temperature": 1.0, "top_p": 0.95, "top_k": 64, "repeat_penalty": 1.0,
         "system": CREATIV_SYSTEM_PROMPT,
     },
     "Image Generation": {
-        "temperature": 0.9, "top_p": 0.9, "top_k": 20,
+        "temperature": 0.9, "top_p": 0.9, "top_k": 20, "repeat_penalty": 1.05,
         "system": IMAGE_GENERATION_SYSTEM_PROMPT,
     },
 }
-for role, params in ROLE_PARAMS.items():
-    params.update(repeat_penalty=1.05 if role == "Creativ" else 1.0)
-
 
 
 def terminal_meta(existing, role):
