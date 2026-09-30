@@ -64,13 +64,27 @@ WORKDIR /opt/ComfyUI
 # Keep this build-time patch guarded: an upstream worker change needs review.
 RUN python - <<'PY_HANDOFF'
 import ast
+import textwrap
 from pathlib import Path
 
 path = Path("main.py")
 source = path.read_text()
-anchor = "            q.task_done(item_id,\n"
-if source.count(anchor) != 1:
-    raise SystemExit("Unsupported ComfyUI worker: VRAM handoff anchor changed")
+tree = ast.parse(source)
+worker = next((node for node in tree.body
+               if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+               and node.name == "prompt_worker"), None)
+if worker is None:
+    raise SystemExit("Unsupported ComfyUI worker: prompt_worker was not found")
+calls = [node for node in ast.walk(worker)
+         if isinstance(node, ast.Call)
+         and isinstance(node.func, ast.Attribute)
+         and isinstance(node.func.value, ast.Name)
+         and node.func.value.id == "q"
+         and node.func.attr == "task_done"]
+if len(calls) != 1:
+    raise SystemExit("Unsupported ComfyUI worker: expected one prompt_queue task_done call")
+anchor_line = calls[0].lineno - 1
+indent = source.splitlines()[anchor_line][:len(source.splitlines()[anchor_line]) - len(source.splitlines()[anchor_line].lstrip())]
 # Preserve execution results around e.reset(): clients still need the original
 # history and success status after model/allocator cleanup completes.
 cleanup = '''            # AI_STACK_VRAM_HANDOFF: the queue stays busy until release finishes.
@@ -93,9 +107,25 @@ cleanup = '''            # AI_STACK_VRAM_HANDOFF: the queue stays busy until rel
                 e.success = handoff_success
                 e.status_messages = handoff_messages
 '''
-source = source.replace(anchor, cleanup + anchor)
-ast.parse(source)
-path.write_text(source)
+cleanup = textwrap.dedent(cleanup)
+cleanup = "\n".join(indent + line if line else "" for line in cleanup.rstrip("\n").splitlines()) + "\n"
+lines = source.splitlines(keepends=True)
+lines.insert(anchor_line, cleanup)
+patched = "".join(lines)
+# Check both syntax and placement before changing the downloaded source.
+patched_tree = ast.parse(patched)
+patched_worker = next(node for node in patched_tree.body
+                      if isinstance(node, ast.FunctionDef) and node.name == "prompt_worker")
+marker_lines = [i for i, line in enumerate(patched.splitlines(), 1)
+                if "AI_STACK_VRAM_HANDOFF" in line]
+patched_calls = [node for node in ast.walk(patched_worker)
+                 if isinstance(node, ast.Call)
+                 and isinstance(node.func, ast.Attribute)
+                 and isinstance(node.func.value, ast.Name)
+                 and node.func.value.id == "q" and node.func.attr == "task_done"]
+if len(marker_lines) != 1 or len(patched_calls) != 1 or marker_lines[0] >= patched_calls[0].lineno:
+    raise SystemExit("VRAM handoff patch verification failed")
+path.write_text(patched)
 PY_HANDOFF
 
 RUN python -c "from pathlib import Path; assert 'class TextEncodeQwenImage21' in Path('comfy_extras/nodes_qwen.py').read_text(), 'Update ComfyUI for Qwen Image 2.1 support'"
