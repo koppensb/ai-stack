@@ -1215,6 +1215,8 @@ are preserved. The prompt is defined as `CODING_SYSTEM_PROMPT` in
 prompts and uses available image tools to request generation or editing through
 ComfyUI. Its preset enables Image Generation as a default feature and explicitly
 allows Open WebUI's built-in image-generation tool, with native function calling.
+The managed system prompt requests exactly one image-tool call unless the user
+specifies a larger count and forbids retries or extra variants after success.
 Existing chats may still need
 the Image toggle enabled in the message input's Integrations menu; the default
 feature applies to new chats. The system prompt does not add tool access by itself.
