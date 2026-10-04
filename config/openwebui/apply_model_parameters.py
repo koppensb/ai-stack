@@ -29,9 +29,9 @@ MANAGED_BY = "ai-stack-model-presets-v1"
 BOOTSTRAP_KEY = "ai_stack.model_presets.initialized"
 PUBLIC_ACCESS_KEY = "ai_stack.model_presets.public_read_v1"
 PROMPT_CACHE_KEY = "ai_stack.model_presets.prompt_cache_v1"
-ALLROUND_WEB_SEARCH_KEY = "ai_stack.model_presets.allround_web_search_v1"
+ALLROUND_WEB_SEARCH_KEY = "ai_stack.model_presets.allround_web_search_tools_v1"
 IMAGE_GENERATION_KEY = "ai_stack.model_presets.image_generation_tools_v1"
-CODING_TERMINAL_KEY = "ai_stack.model_presets.coding_terminal_v1"
+CODING_TERMINAL_KEY = "ai_stack.model_presets.coding_terminal_tools_v1"
 CHAT_MODEL_KEY = "ai_stack.model_presets.qwen38_chat_v1"
 TERMINAL_ID = "ai-stack-open-terminal"
 
@@ -147,10 +147,12 @@ Response quality:
 ROLE_PARAMS = {
     "Coding": {
         "temperature": 0.6, "top_p": 0.9, "top_k": 20, "repeat_penalty": 1.05,
+        "function_calling": "native",
         "system": CODING_SYSTEM_PROMPT,
     },
     "Allround": {
         "temperature": 0.7, "top_p": 0.9, "top_k": 40, "repeat_penalty": 1.05,
+        "function_calling": "native",
         "system": ALLROUND_SYSTEM_PROMPT,
     },
     "Creativ": {
@@ -159,6 +161,7 @@ ROLE_PARAMS = {
     },
     "Image Generation": {
         "temperature": 0.9, "top_p": 0.9, "top_k": 20, "repeat_penalty": 1.05,
+        "function_calling": "native",
         "system": IMAGE_GENERATION_SYSTEM_PROMPT,
     },
 }
@@ -168,12 +171,20 @@ def terminal_meta(existing, role):
     """Enable the managed terminal only for Coding among the managed presets."""
     meta = dict(existing or {})
     enabled = role == "Coding"
-    meta["capabilities"] = {**(meta.get("capabilities") or {}), "terminal": enabled}
+    capabilities = {**(meta.get("capabilities") or {}), "terminal": enabled}
+    if enabled:
+        capabilities["builtin_tools"] = True
+    meta["capabilities"] = capabilities
     if enabled:
         meta["terminalId"] = TERMINAL_ID
     else:
         meta.pop("terminalId", None)
     return meta
+
+
+def native_tool_params(existing):
+    """Enable structured native tool calls while preserving other model params."""
+    return {**(existing or {}), "function_calling": "native"}
 
 
 async def ensure_coding_terminal(models, form_type):
@@ -189,14 +200,21 @@ async def ensure_coding_terminal(models, form_type):
                 or model.base_model_id != base_id):
             raise RuntimeError(f"Refusing to change terminal for unrelated model {model_id}")
         data["meta"] = terminal_meta(data.get("meta"), role)
+        if role == "Coding":
+            data["params"] = native_tool_params(data.get("params"))
         targets.append((model_id, role, data))
     for model_id, role, data in targets:
         await resolve(models.update_model_by_id(model_id, form_type(**data)))
         saved = await resolve(models.get_model_by_id(model_id))
         meta = saved.model_dump().get("meta", {}) if saved is not None else {}
+        params = saved.params if saved is not None else {}
+        if hasattr(params, "model_dump"):
+            params = params.model_dump()
         enabled = role == "Coding"
         if ((meta.get("capabilities") or {}).get("terminal") is not enabled
                 or (enabled and meta.get("terminalId") != TERMINAL_ID)
+                or (enabled and (meta.get("capabilities") or {}).get("builtin_tools") is not True)
+                or (enabled and params.get("function_calling") != "native")
                 or (not enabled and "terminalId" in meta)):
             raise RuntimeError(f"Failed to configure terminal for {model_id}; safe to rerun.")
     print("Open Terminal enabled only for the Coding preset.", flush=True)
@@ -212,12 +230,11 @@ def preset_meta(existing, role):
             features.append(feature)
         meta["defaultFeatureIds"] = features
         capabilities = {**(meta.get("capabilities") or {}), feature: True}
-        if feature == "image_generation":
-            capabilities["builtin_tools"] = True
-            meta["builtinTools"] = {
-                **(meta.get("builtinTools") or {}),
-                "image_generation": True,
-            }
+        capabilities["builtin_tools"] = True
+        meta["builtinTools"] = {
+            **(meta.get("builtinTools") or {}),
+            feature: True,
+        }
         meta["capabilities"] = capabilities
     return meta
 
@@ -233,11 +250,18 @@ async def ensure_allround_web_search(models, form_type):
             or model.base_model_id != MODEL_PRESETS[model_id][1]):
         raise RuntimeError(f"Refusing to change web search for unrelated model {model_id}")
     data["meta"] = preset_meta(data.get("meta"), "Allround")
+    data["params"] = native_tool_params(data.get("params"))
     await resolve(models.update_model_by_id(model_id, form_type(**data)))
     saved = await resolve(models.get_model_by_id(model_id))
     meta = saved.model_dump().get("meta", {}) if saved is not None else {}
+    params = saved.params if saved is not None else {}
+    if hasattr(params, "model_dump"):
+        params = params.model_dump()
     if ("web_search" not in (meta.get("defaultFeatureIds") or [])
-            or (meta.get("capabilities") or {}).get("web_search") is not True):
+            or (meta.get("capabilities") or {}).get("web_search") is not True
+            or (meta.get("capabilities") or {}).get("builtin_tools") is not True
+            or (meta.get("builtinTools") or {}).get("web_search") is not True
+            or params.get("function_calling") != "native"):
         raise RuntimeError("Failed to enable Allround web search; safe to rerun.")
     print("Allround web search enabled by default using the configured search engine.", flush=True)
 
@@ -253,13 +277,18 @@ async def ensure_image_generation(models, form_type):
             or model.base_model_id != MODEL_PRESETS[model_id][1]):
         raise RuntimeError(f"Refusing to change image generation for unrelated model {model_id}")
     data["meta"] = preset_meta(data.get("meta"), "Image Generation")
+    data["params"] = native_tool_params(data.get("params"))
     await resolve(models.update_model_by_id(model_id, form_type(**data)))
     saved = await resolve(models.get_model_by_id(model_id))
     meta = saved.model_dump().get("meta", {}) if saved is not None else {}
+    params = saved.params if saved is not None else {}
+    if hasattr(params, "model_dump"):
+        params = params.model_dump()
     if ("image_generation" not in (meta.get("defaultFeatureIds") or [])
             or (meta.get("capabilities") or {}).get("image_generation") is not True
             or (meta.get("capabilities") or {}).get("builtin_tools") is not True
-            or (meta.get("builtinTools") or {}).get("image_generation") is not True):
+            or (meta.get("builtinTools") or {}).get("image_generation") is not True
+            or params.get("function_calling") != "native"):
         raise RuntimeError("Failed to enable Image Generation image generation; safe to rerun.")
     print("Image Generation image generation enabled by default using the configured ComfyUI workflows.", flush=True)
 

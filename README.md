@@ -1205,7 +1205,8 @@ when already saved; otherwise the backend defaults apply. The repeat penalty
 is 1.05 for Creativ and 1.0 for the other roles. Context size remains controlled
 by the llama.cpp service; existing token limits are preserved. Coding receives an
 English system prompt for software development without prescribing a programming
-language. Code comments, docstrings, new identifiers, and developer-facing diagnostics
+language. Its preset enables the Builtin Tools capability, native function calling,
+and the configured Open Terminal by default. Code comments, docstrings, new identifiers, and developer-facing diagnostics
 are written in English regardless of the input language; conversational explanations
 follow the user's language. Existing interface names and requested localization
 are preserved. The prompt is defined as `CODING_SYSTEM_PROMPT` in
@@ -1213,7 +1214,8 @@ are preserved. The prompt is defined as `CODING_SYSTEM_PROMPT` in
 `IMAGE_GENERATION_SYSTEM_PROMPT` defined in the same file. It prepares visual
 prompts and uses available image tools to request generation or editing through
 ComfyUI. Its preset enables Image Generation as a default feature and explicitly
-allows Open WebUI's built-in image-generation tool. Existing chats may still need
+allows Open WebUI's built-in image-generation tool, with native function calling.
+Existing chats may still need
 the Image toggle enabled in the message input's Integrations menu; the default
 feature applies to new chats. The system prompt does not add tool access by itself.
 The separate external task-model prompt template remains responsible for automatic
@@ -1225,7 +1227,10 @@ focused web research, prioritizing factual accuracy, primary sources, citations,
 and explicit uncertainty. It requires verification of current or uncertain claims
 when search tools are available and discloses when verification is unavailable.
 The prompt does not enable web search by itself; enable it in Open WebUI as
-described in the web-search setup above.
+described in the web-search setup above. The Allround preset enables Web Search
+as a default feature, its model capability and builtin tool category, and native
+function calling. The global search setting and the user's feature permission
+must still allow web search.
 ComfyUI renders the actual images.
 
 The presets use separate IDs: `ai-stack-coding`, `ai-stack-allround`,
