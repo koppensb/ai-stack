@@ -106,7 +106,7 @@ def main():
     args = parser.parse_args()
     root = args.root.resolve()
     plan = [(service, name, flags)
-            for service in ('llama-cpp', 'llama-cpp-image')
+            for service in ('llama-cpp', 'llama-cpp-small')
             for name, flags in chat_plan(root/f'config/{service}/models.ini')]
     for service, name, _ in plan:
         print('Chat model: ' + name, flush=True)

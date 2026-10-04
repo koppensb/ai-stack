@@ -75,7 +75,7 @@ services:
       - backend-net
       - monitoring-net
 
-    shm_size: "32gb"
+    shm_size: ${LLAMA_CPP_SHM_SIZE:?Set LLAMA_CPP_SHM_SIZE in .env (see .env.example)}
 
     volumes:
       - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/data/llama-cpp:/models
@@ -150,7 +150,7 @@ services:
 
   # Separate prompt/task router sharing the model cache and ROCm image.
   # It currently inherits GPU offloading; it is not configured as CPU-only.
-  llama-cpp-image:
+  llama-cpp-small:
     build: *llama-build
     image: llama_cpp_rocm:latest
     runtime: amd
@@ -159,7 +159,7 @@ services:
       - backend-net
     volumes:
       - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/data/llama-cpp:/models
-      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/llama-cpp-image/models.ini:/etc/llama-cpp/models.ini:ro
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/llama-cpp-small/models.ini:/etc/llama-cpp/models.ini:ro
     environment:
       HF_TOKEN: ${HF_TOKEN-}
       LLAMA_CACHE: /models
@@ -184,7 +184,7 @@ services:
       - --main-gpu
       - "0"
       - --ctx-size
-      - ${LLAMA_CPP_IMAGE_CTX_SIZE:?Set LLAMA_CPP_IMAGE_CTX_SIZE in .env (see .env.example)}
+      - ${LLAMA_CPP_SMALL_CTX_SIZE:?Set LLAMA_CPP_SMALL_CTX_SIZE in .env (see .env.example)}
       - --batch-size
       - ${LLAMA_CPP_BATCH_SIZE:?Set LLAMA_CPP_BATCH_SIZE in .env (see .env.example)}
       # Reuse identical prompt prefixes while the model process remains loaded.
@@ -199,9 +199,9 @@ services:
       - "1"
       # CPU threads for token generation and prompt processing, respectively.
       - --threads
-      - ${LLAMA_CPP_IMAGE_THREADS:?Set LLAMA_CPP_IMAGE_THREADS in .env (see .env.example)}
+      - ${LLAMA_CPP_SMALL_THREADS:?Set LLAMA_CPP_SMALL_THREADS in .env (see .env.example)}
       - --threads-batch
-      - ${LLAMA_CPP_IMAGE_THREADS:?Set LLAMA_CPP_IMAGE_THREADS in .env (see .env.example)}
+      - ${LLAMA_CPP_SMALL_THREADS:?Set LLAMA_CPP_SMALL_THREADS in .env (see .env.example)}
       - --load-mode
       - mmap
       - --metrics
@@ -318,7 +318,7 @@ services:
     depends_on:
       open-terminal:
         condition: service_healthy
-      llama-cpp-image:
+      llama-cpp-small:
         condition: service_started
       llama-cpp:
         condition: service_started
@@ -333,7 +333,7 @@ services:
       # start.py serializes the terminal connection without interpolating JSON secrets.
       OPEN_TERMINAL_API_KEY: ${OPEN_TERMINAL_API_KEY:?Set OPEN_TERMINAL_API_KEY in .env (see .env.example)}
       # Semicolon-separated URLs and keys must remain aligned by index.
-      OPENAI_API_BASE_URLS: "http://llama-cpp:8000/v1;http://llama-cpp-image:8000/v1"
+      OPENAI_API_BASE_URLS: "http://llama-cpp:8000/v1;http://llama-cpp-small:8000/v1"
       OPENAI_API_KEYS: "${LLAMA_CPP_API_KEY:?Set LLAMA_CPP_API_KEY in .env (see .env.example)};${LLAMA_CPP_API_KEY:?Set LLAMA_CPP_API_KEY in .env (see .env.example)}"
       TASK_MODEL_EXTERNAL: Qwen3.5-2B
       WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:?Set WEBUI_SECRET_KEY in .env (see .env.example)}

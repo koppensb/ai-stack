@@ -255,13 +255,20 @@ key = saved_key or secrets.token_hex(32)
 template_names = re.findall(r'^([A-Z][A-Z0-9_]*)=', (source/'.env.example').read_text(), re.M)
 present_names = set(re.findall(r'^\s*(?:export\s+)?([A-Z][A-Z0-9_]*)\s*=', original, re.M))
 updates = {name: values[name] for name in template_names if name not in present_names}
+# Preserve existing router tuning while renaming its deployment variables.
+for new_name, old_name in (
+    ('LLAMA_CPP_SMALL_CTX_SIZE', 'LLAMA_CPP_IMAGE_CTX_SIZE'),
+    ('LLAMA_CPP_SMALL_THREADS', 'LLAMA_CPP_IMAGE_THREADS'),
+):
+    if new_name not in present_names and old_name in values:
+        updates[new_name] = values[old_name]
 updates.update({'AI_STACK_ROOT': str(root), 'PUBLIC_IP_OR_DOMAIN': host,
            'LLAMA_CPP_API_KEY': key, 'GRAFANA_ADMIN_PASSWORD': password,
            'ROCM_GFX_TARGETS': os.environ['AI_INSTALL_GFX'],
            'LLAMA_CPP_REF': os.environ['AI_INSTALL_REF'] or values['LLAMA_CPP_REF']})
 # Enable prompt generation when introducing the dedicated image-prompt service.
 # Later installer runs preserve an intentional disable in the deployed .env.
-if 'LLAMA_CPP_IMAGE_CTX_SIZE' not in present_names:
+if not {'LLAMA_CPP_SMALL_CTX_SIZE', 'LLAMA_CPP_IMAGE_CTX_SIZE'} & present_names:
     updates['ENABLE_IMAGE_PROMPT_GENERATION'] = 'true'
 # Migrate only the exact obsolete bundled image defaults; preserve custom values.
 if values.get('IMAGE_GENERATION_MODEL') == 'flux2-dev-Q4_K_M.gguf':

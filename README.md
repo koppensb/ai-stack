@@ -840,7 +840,7 @@ rerunning the preset script reapplies caching with the other managed defaults.
 After deploying the updated Compose file and preset script on the GPU host:
 
 ```bash
-sudo docker compose up -d --no-deps llama-cpp llama-cpp-image
+sudo docker compose up -d --no-deps llama-cpp llama-cpp-small
 sudo docker compose restart openwebui
 ```
 
@@ -1113,18 +1113,19 @@ and [Open WebUI SearXNG integration](https://docs.openwebui.com/features/chat-co
 # Open WebUI defaults and Qwen image generation/editing
 
 Open WebUI uses llama.cpp for chat and the internal ComfyUI service for images.
-The separate `llama-cpp-image` service runs Qwen3.5-2B Q4_K_M, configured in
-`config/llama-cpp-image/models.ini`. It shares the built llama.cpp image and model
-cache, but exposes a separate internal API at `http://llama-cpp-image:8000/v1`.
+The separate `llama-cpp-small` service provides Qwen3.5-2B Q4_K_M for Open WebUI
+tasks, configured in
+`config/llama-cpp-small/models.ini`. It shares the built llama.cpp image and model
+cache, but exposes a separate internal API at `http://llama-cpp-small:8000/v1`.
 No host port is published. The current Compose configuration shares
 `LLAMA_CPP_GPU_LAYERS` with the main router and loads this model at startup;
-it is not CPU-only. `LLAMA_CPP_IMAGE_CTX_SIZE` defaults to 16384 tokens.
-`LLAMA_CPP_IMAGE_THREADS` controls both `--threads` and `--threads-batch`
+it is not CPU-only. `LLAMA_CPP_SMALL_CTX_SIZE` defaults to 16384 tokens.
+`LLAMA_CPP_SMALL_THREADS` controls both `--threads` and `--threads-batch`
 (default 8). The logical batch size uses the shared `LLAMA_CPP_BATCH_SIZE`. The VRAM coordinator monitors
 only the main router and does not unload this separate service's model.
 
-With `ENABLE_IMAGE_PROMPT_GENERATION=true`, Open WebUI uses the external task
-model `llama-cpp-image` to expand the image request into a description, in English
+With `ENABLE_IMAGE_PROMPT_GENERATION=true`, Open WebUI also uses the external task
+model `llama-cpp-small` to expand image requests into descriptions, in English
 unless the user explicitly requests another prompt language.
 The template returns the JSON `prompt` field expected by Open WebUI, which then
 passes that description through the existing ComfyUI workflow to Qwen-Image-2.1.
@@ -1163,9 +1164,9 @@ switch. `apply_qwen_images.py` also appends both managed API connections to an
 existing database, preserving unrelated endpoints and their indices, and saves
 the task model and prompt template. Restart Open WebUI after applying settings.
 For a manual upgrade, copy the new preset and updated runtime files, add the two
-`LLAMA_CPP_IMAGE_*` variables from `.env.example`, set
+`LLAMA_CPP_SMALL_*` variables from `.env.example`, set
 `ENABLE_IMAGE_PROMPT_GENERATION=true`, run `scripts/download_models.py`, recreate
-`llama-cpp-image` and `openwebui`, then run the settings command below.
+`llama-cpp-small` and `openwebui`, then run the settings command below.
 
 Four additional Open WebUI workspace models are managed by `config/openwebui/apply_model_parameters.py`.
 At container startup a background helper waits for Open WebUI to be healthy and

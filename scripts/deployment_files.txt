@@ -3,7 +3,7 @@ docker-compose.yml
 llama_cpp_rocm.dockerfile
 comfyui_rocm.dockerfile
 config/llama-cpp/models.ini
-config/llama-cpp-image/models.ini
+config/llama-cpp-small/models.ini
 config/llama-metrics-discovery/llama_metrics_discovery.py
 config/nginx/nginx.conf
 config/prometheus/prometheus.yml

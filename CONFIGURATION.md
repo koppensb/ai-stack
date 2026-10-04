@@ -14,7 +14,7 @@ running deployment's saved settings.
 | `llama_cpp_rocm.dockerfile` | ROCm SDK and compiled llama.cpp server/downloader | Rebuild image and recreate both llama.cpp services |
 | `comfyui_rocm.dockerfile` | Latest stable ComfyUI, GGUF nodes and completion-time VRAM cleanup patch | Rebuild image and recreate ComfyUI |
 | `config/llama-cpp/models.ini` | Main router model IDs, downloads and per-model loading options | Prefetch new assets, then restart/recreate the router |
-| `config/llama-cpp-image/models.ini` | Dedicated image-prompt router preset | Prefetch new assets, then restart/recreate that router |
+| `config/llama-cpp-small/models.ini` | Small-model task router preset | Prefetch new assets, then restart/recreate that router |
 | `config/openwebui/apply_model_parameters.py` | Four workspace presets, English system prompts, sampling defaults and public read grants | Initial signup; explicit rerun for later prompt/default changes |
 | Open WebUI database | Saved admin settings, workspace models, users, access grants and initialization markers | Apply the relevant helper or edit through the UI; restart to clear cached settings |
 | `config/nginx/nginx.conf` | TLS listeners and proxy routes | Validate with `nginx -t`, then reload/restart NGINX |
@@ -183,7 +183,7 @@ review:
 - The image-prompt service uses `LLAMA_CPP_GPU_LAYERS`, just like the main router;
   it is not CPU-only and its preset loads at startup. The coordinator currently
   monitors only the main router, so it cannot unload this service's model.
-- `LLAMA_CPP_IMAGE_THREADS` controls both generation and prompt-processing CPU
+- `LLAMA_CPP_SMALL_THREADS` controls both generation and prompt-processing CPU
   threads. `--batch-size` uses the shared `LLAMA_CPP_BATCH_SIZE` independently.
 - All chat workspace presets use `Qwen3.8-27B`. Existing managed chat presets
   migrate once at startup, tracked by `ai_stack.model_presets.qwen38_chat_v1`,
