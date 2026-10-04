@@ -189,7 +189,7 @@ review:
   migrate once at startup, tracked by `ai_stack.model_presets.qwen38_chat_v1`,
   preserving custom prompts and settings.
 - The Image Generation workspace preset, dedicated router and external task
-  setting all use `Qwen3.5-4B`.
+  setting all use `Qwen3.5-2B`.
 
 ## Repository housekeeping
 
