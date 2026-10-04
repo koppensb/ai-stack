@@ -16,7 +16,7 @@ def settings():
     return {
         # The external task model also serves tasks such as title/tag generation;
         # this is an API model ID, not the selectable workspace preset name.
-        "task.model.external": "Qwen3.5-2B",
+        "task.model.external": "Qwen3.5-4B",
         "task.model.params": TASK_MODEL_PARAMS,
         **{key: template for _, key, template in TASK_PROMPTS},
         "image_generation.enable": os.environ.get("ENABLE_IMAGE_GENERATION", "true").lower() == "true",
