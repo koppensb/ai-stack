@@ -30,7 +30,7 @@ BOOTSTRAP_KEY = "ai_stack.model_presets.initialized"
 PUBLIC_ACCESS_KEY = "ai_stack.model_presets.public_read_v1"
 PROMPT_CACHE_KEY = "ai_stack.model_presets.prompt_cache_v1"
 ALLROUND_WEB_SEARCH_KEY = "ai_stack.model_presets.allround_web_search_v1"
-IMAGE_GENERATION_KEY = "ai_stack.model_presets.image_generation_v1"
+IMAGE_GENERATION_KEY = "ai_stack.model_presets.image_generation_tools_v1"
 CODING_TERMINAL_KEY = "ai_stack.model_presets.coding_terminal_v1"
 CHAT_MODEL_KEY = "ai_stack.model_presets.qwen38_chat_v1"
 TERMINAL_ID = "ai-stack-open-terminal"
@@ -70,7 +70,7 @@ Prompt creation:
 
 Execution:
 - If the user asks only for a prompt, return the finished prompt without submitting a generation request.
-- If the user asks to generate or edit an image, use the available image-generation or editing tool connected to the configured ComfyUI workflow. Follow its actual schema and supply the prepared prompt and any supported reference images or settings.
+- If the user asks to create or edit an image, call the available image-generation or editing tool connected to the configured ComfyUI workflow in this turn. Do not answer only with a prompt or say you cannot create images when that tool is available. Follow its actual schema and supply the prepared prompt and any supported reference images or settings.
 - Use configured defaults for unspecified technical settings. Respect explicit dimensions, aspect ratio, image count, and seed when supported; briefly explain any material unsupported requirement.
 - Do not invent tool names, API calls, workflow definitions, file paths, job identifiers, or output URLs. Plain text or JSON in a chat response does not by itself submit a ComfyUI job.
 - If no suitable execution tool is available, provide the ready-to-use prompt and briefly explain that the user must enable image generation in Open WebUI or submit the prompt through the configured image workflow.
@@ -211,7 +211,14 @@ def preset_meta(existing, role):
         if feature not in features:
             features.append(feature)
         meta["defaultFeatureIds"] = features
-        meta["capabilities"] = {**(meta.get("capabilities") or {}), feature: True}
+        capabilities = {**(meta.get("capabilities") or {}), feature: True}
+        if feature == "image_generation":
+            capabilities["builtin_tools"] = True
+            meta["builtinTools"] = {
+                **(meta.get("builtinTools") or {}),
+                "image_generation": True,
+            }
+        meta["capabilities"] = capabilities
     return meta
 
 
@@ -250,7 +257,9 @@ async def ensure_image_generation(models, form_type):
     saved = await resolve(models.get_model_by_id(model_id))
     meta = saved.model_dump().get("meta", {}) if saved is not None else {}
     if ("image_generation" not in (meta.get("defaultFeatureIds") or [])
-            or (meta.get("capabilities") or {}).get("image_generation") is not True):
+            or (meta.get("capabilities") or {}).get("image_generation") is not True
+            or (meta.get("capabilities") or {}).get("builtin_tools") is not True
+            or (meta.get("builtinTools") or {}).get("image_generation") is not True):
         raise RuntimeError("Failed to enable Image Generation image generation; safe to rerun.")
     print("Image Generation image generation enabled by default using the configured ComfyUI workflows.", flush=True)
 

@@ -1212,8 +1212,10 @@ are preserved. The prompt is defined as `CODING_SYSTEM_PROMPT` in
 `config/openwebui/apply_model_parameters.py`. Image Generation receives the English
 `IMAGE_GENERATION_SYSTEM_PROMPT` defined in the same file. It prepares visual
 prompts and uses available image tools to request generation or editing through
-ComfyUI. The system prompt does not add tool access: without a suitable tool,
-it supplies the prompt and directs the user to Open WebUI's image-generation mode.
+ComfyUI. Its preset enables Image Generation as a default feature and explicitly
+allows Open WebUI's built-in image-generation tool. Existing chats may still need
+the Image toggle enabled in the message input's Integrations menu; the default
+feature applies to new chats. The system prompt does not add tool access by itself.
 The separate external task-model prompt template remains responsible for automatic
 JSON prompt rewriting. Creativ receives the English `CREATIV_SYSTEM_PROMPT` for
 creative writing, including stories, lyrics, advertising copy, birthday wishes,
