@@ -1199,6 +1199,10 @@ an Open WebUI version with the access-grants API.
 | Creativ | Qwen3.8-27B | 1.0 | 0.95 | 64 |
 | Image Generation | Qwen3.5-2B | 0.9 | 0.90 | 20 |
 
+New chats use Allround by default through `DEFAULT_MODELS`. A user's own saved
+default model takes precedence; the instance default is used when no personal
+preference exists.
+
 These are adjustable role defaults, not manufacturer-optimal settings. Unlisted
 fields such as `min_p`, `presence_penalty`, and `frequency_penalty` are preserved
 when already saved; otherwise the backend defaults apply. The repeat penalty
