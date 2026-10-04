@@ -14,6 +14,13 @@
     "key": "prompt"
   },
   {
+    "type": "negative_prompt",
+    "node_ids": [
+      "6"
+    ],
+    "key": "negative_prompt"
+  },
+  {
     "type": "width",
     "node_ids": [
       "8"
