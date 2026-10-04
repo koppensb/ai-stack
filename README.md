@@ -1113,7 +1113,7 @@ and [Open WebUI SearXNG integration](https://docs.openwebui.com/features/chat-co
 # Open WebUI defaults and Qwen image generation/editing
 
 Open WebUI uses llama.cpp for chat and the internal ComfyUI service for images.
-The separate `llama-cpp-image` service runs Qwen3.5-4B Q4_K_M, configured in
+The separate `llama-cpp-image` service runs Qwen3.5-2B Q4_K_M, configured in
 `config/llama-cpp-image/models.ini`. It shares the built llama.cpp image and model
 cache, but exposes a separate internal API at `http://llama-cpp-image:8000/v1`.
 No host port is published. The current Compose configuration shares
@@ -1134,7 +1134,7 @@ original language. Open WebUI's external task model is shared with other tasks,
 so title/tag generation and similar tasks can also use this small model.
 Only Open WebUI task requests use `temperature=0.7`, `top_p=0.8` and
 `chat_template_kwargs.enable_thinking=false`, following the general non-thinking
-recommendation for [Qwen3.5-4B](https://huggingface.co/Qwen/Qwen3.5-4B).
+recommendation for [Qwen3.5-2B](https://huggingface.co/Qwen/Qwen3.5-2B).
 The startup wrapper supplies `TASK_MODEL_PARAMS` for new databases;
 `apply_qwen_images.py` persists the same settings as `task.model.params` for
 existing installations. This requires Open WebUI with `TASK_MODEL_PARAMS` support.
@@ -1192,7 +1192,7 @@ an Open WebUI version with the access-grants API.
 | Coding | Qwen3.8-27B | 0.6 | 0.90 | 20 |
 | Allround | Qwen3.8-27B | 0.7 | 0.90 | 40 |
 | Creativ | Qwen3.8-27B | 1.0 | 0.95 | 64 |
-| Image Generation | Qwen3.5-4B | 0.9 | 0.90 | 20 |
+| Image Generation | Qwen3.5-2B | 0.9 | 0.90 | 20 |
 
 These are adjustable role defaults, not manufacturer-optimal settings. Unlisted
 fields such as `min_p`, `presence_penalty`, and `frequency_penalty` are preserved
@@ -1231,7 +1231,7 @@ preserved. All four presets and their two base models receive public read grants
 is granted. Users must still have an approved account and the applicable feature
 permissions for web search or image generation.
 All three chat presets use the router API ID `Qwen3.8-27B` (Qwen 3.8 27B).
-Image Generation keeps `Qwen3.5-4B`, matching its dedicated router and
+Image Generation keeps `Qwen3.5-2B`, matching its dedicated router and
 `TASK_MODEL_EXTERNAL`.
 
 Existing installations migrate the managed chat presets automatically on the

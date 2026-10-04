@@ -19,7 +19,7 @@ MODEL_PRESETS = {
     "ai-stack-allround": ("Allround", "Qwen3.8-27B"),
     "ai-stack-creativ": ("Creativ", "Qwen3.8-27B"),
     "ai-stack-image-generation": (
-        "Image Generation", "Qwen3.5-4B"
+        "Image Generation", "Qwen3.5-2B"
     ),
 }
 # Marker prevents overwriting unrelated models that happen to use the same ID.
