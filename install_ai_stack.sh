@@ -321,6 +321,7 @@ if not secret.exists() or old_key != key:
 # Preserve an existing certificate pair; changing --host does not renew it.
 certdir = root/'config/nginx/certs'
 certdir.mkdir(parents=True, exist_ok=True)
+certdir.chmod(0o1777)
 crt, certkey = certdir/'nginx.crt', certdir/'nginx.key'
 if crt.exists() != certkey.exists(): raise SystemExit('Incomplete TLS certificate pair; fix this first.')
 if not crt.exists():

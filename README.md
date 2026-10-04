@@ -680,6 +680,10 @@ NGINX will not start unless both files below exist:
 - `config/nginx/certs/nginx.crt`
 - `config/nginx/certs/nginx.key`
 
+The installer makes `config/nginx/certs` writable by other local users, with
+the sticky bit set so users cannot remove or rename files owned by someone else.
+Create or copy the certificate pair there using the exact filenames above.
+
 For a local installation, create a self-signed certificate:
 
 ```bash
