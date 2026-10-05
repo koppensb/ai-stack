@@ -336,7 +336,7 @@ services:
       OPENAI_API_BASE_URLS: "http://llama-cpp:8000/v1;http://llama-cpp-small:8000/v1"
       OPENAI_API_KEYS: "${LLAMA_CPP_API_KEY:?Set LLAMA_CPP_API_KEY in .env (see .env.example)};${LLAMA_CPP_API_KEY:?Set LLAMA_CPP_API_KEY in .env (see .env.example)}"
       DEFAULT_MODELS: "${DEFAULT_MODELS:?Set DEFAULT_MODELS in .env (see .env.example)}"
-      TASK_MODEL_EXTERNAL: Qwen3.5-4B
+      TASK_MODEL_EXTERNAL: Small
       WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:?Set WEBUI_SECRET_KEY in .env (see .env.example)}
       WEBUI_AUTH: "true"
       WEBUI_URL: https://${PUBLIC_IP_OR_DOMAIN:?Set PUBLIC_IP_OR_DOMAIN in .env (see .env.example)}:8443
