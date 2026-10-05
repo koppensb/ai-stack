@@ -1154,8 +1154,10 @@ The managed task templates in `config/openwebui/start.py` configure:
   with no repeated questions or forced suggestions.
 - Search queries: up to three distinct queries in the language best suited to
   authoritative sources, including English technical documentation and local sources.
-- Image prompts: the exact `Image Generation` system prompt, extended with the
-  task-specific requirement to return only `{"prompt": "..."}` without running tools.
+- Image prompts: the same shared image-prompt creation rules as the `Image
+  Generation` workspace preset, with task-specific requirements to return only
+  `{"prompt": "..."}` and not run tools. Workspace tool execution instructions
+  are kept separate.
 
 All five templates are supplied for new databases and saved for existing ones by
 `apply_qwen_images.py`. Deploy the updated `config/openwebui` files, run that helper
@@ -1215,7 +1217,7 @@ are written in English regardless of the input language; conversational explanat
 follow the user's language. Existing interface names and requested localization
 are preserved. The prompt is defined as `CODING_SYSTEM_PROMPT` in
 `config/openwebui/apply_model_parameters.py`. Image Generation receives the English
-`IMAGE_GENERATION_SYSTEM_PROMPT` defined in the same file. It prepares visual
+`IMAGE_PROMPT_CREATION_RULES` defined in the same file. It prepares visual
 prompts and uses available image tools to request generation or editing through
 ComfyUI. Its preset enables Image Generation as a default feature and explicitly
 allows Open WebUI's built-in image-generation tool, with native function calling.
@@ -1224,8 +1226,9 @@ specifies a larger count and forbids retries or extra variants after success.
 Existing chats may still need
 the Image toggle enabled in the message input's Integrations menu; the default
 feature applies to new chats. The system prompt does not add tool access by itself.
-The separate external task-model prompt template remains responsible for automatic
-JSON prompt rewriting. Creativ receives the English `CREATIV_SYSTEM_PROMPT` for
+The separate external task-model prompt template reuses those shared image-prompt
+rules for automatic JSON prompt rewriting, while keeping task output and tool
+execution instructions separate. Creativ receives the English `CREATIV_SYSTEM_PROMPT` for
 creative writing, including stories, lyrics, advertising copy, birthday wishes,
 and personal messages. It follows the user's language, audience, tone, and format.
 Allround receives the English `ALLROUND_SYSTEM_PROMPT` for concise answers and
