@@ -15,9 +15,9 @@ import sys
 # stay untouched; missing base records are registered only to attach read grants.
 # All chat roles share one router model; image prompting keeps its own model.
 MODEL_PRESETS = {
-    "ai-stack-coding": ("Coding", "Qwen3.8-27B"),
-    "ai-stack-allround": ("Allround", "Qwen3.8-27B"),
-    "ai-stack-creativ": ("Creativ", "Qwen3.8-27B"),
+    "ai-stack-coding": ("Coding", "Big"),
+    "ai-stack-allround": ("Allround", "Big"),
+    "ai-stack-creativ": ("Creativ", "Big"),
     "ai-stack-image-generation": (
         "Image Generation", "Small"
     ),
@@ -32,7 +32,7 @@ PROMPT_CACHE_KEY = "ai_stack.model_presets.prompt_cache_v1"
 ALLROUND_WEB_SEARCH_KEY = "ai_stack.model_presets.allround_web_search_tools_v1"
 IMAGE_GENERATION_KEY = "ai_stack.model_presets.image_generation_cardinality_tools_v1"
 CODING_TERMINAL_KEY = "ai_stack.model_presets.coding_terminal_tools_v1"
-CHAT_MODEL_KEY = "ai_stack.model_presets.qwen38_chat_v1"
+CHAT_MODEL_KEY = "ai_stack.model_presets.big_chat_v1"
 TERMINAL_ID = "ai-stack-open-terminal"
 
 CODING_SYSTEM_PROMPT = """You are Coding, an experienced software developer. You create, analyze, improve, and review code. Your solutions are correct, clear, secure, and maintainable.

@@ -185,8 +185,8 @@ review:
   monitors only the main router, so it cannot unload this service's model.
 - `LLAMA_CPP_SMALL_THREADS` controls both generation and prompt-processing CPU
   threads. `--batch-size` uses the shared `LLAMA_CPP_BATCH_SIZE` independently.
-- All chat workspace presets use `Qwen3.8-27B`. Existing managed chat presets
-  migrate once at startup, tracked by `ai_stack.model_presets.qwen38_chat_v1`,
+- All chat workspace presets use `Big`. Existing managed chat presets
+  migrate once at startup, tracked by `ai_stack.model_presets.big_chat_v1`,
   preserving custom prompts and settings.
 - The Image Generation workspace preset, dedicated router and external task
   setting all use `Small`.

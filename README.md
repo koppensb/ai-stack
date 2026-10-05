@@ -932,7 +932,7 @@ curl -k https://localhost:8443/v1/chat/completions \
   -H "Authorization: Bearer $LLAMA_CPP_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "Qwen3.8-27B",
+    "model": "Big",
     "messages": [{"role": "user", "content": "Say hello."}],
     "max_tokens": 32
   }'
@@ -1196,9 +1196,9 @@ an Open WebUI version with the access-grants API.
 
 | Display name | Loaded model | Temperature | Top P | Top K |
 | --- | --- | --- | --- | --- |
-| Coding | Qwen3.8-27B | 0.6 | 0.90 | 20 |
-| Allround | Qwen3.8-27B | 0.7 | 0.90 | 40 |
-| Creativ | Qwen3.8-27B | 1.0 | 0.95 | 64 |
+| Coding | Big | 0.6 | 0.90 | 20 |
+| Allround | Big | 0.7 | 0.90 | 40 |
+| Creativ | Big | 1.0 | 0.95 | 64 |
 | Image Generation | Small | 0.9 | 0.90 | 20 |
 
 New chats use Allround by default through `DEFAULT_MODELS`. A user's own saved
@@ -1251,13 +1251,13 @@ preserved. All four presets and their two base models receive public read grants
 (`user:*`, `read`). Existing grants are retained; no new write or anonymous access
 is granted. Users must still have an approved account and the applicable feature
 permissions for web search or image generation.
-All three chat presets use the router API ID `Qwen3.8-27B` (Qwen 3.8 27B).
+All three chat presets use the router API ID `Big` (Qwen 3.8 27B).
 Image Generation keeps `Small`, matching its dedicated router and
 `TASK_MODEL_EXTERNAL`.
 
 Existing installations migrate the managed chat presets automatically on the
 next Open WebUI startup. The one-time marker
-`ai_stack.model_presets.qwen38_chat_v1` tracks this change. The migration preserves
+`ai_stack.model_presets.big_chat_v1` tracks this change. The migration preserves
 custom names, prompts, sampling settings and existing grants; it verifies read
 access to the shared base model before recording completion. Downloads now
 prefetch only the shared chat model, the image-prompt model and the ComfyUI assets.
