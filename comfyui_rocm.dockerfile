@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-ARG ROCM_PYTORCH_IMAGE=rocm/pytorch:rocm10.0_ubuntu26.04_py3.14_pytorch_release_2.13.0
+ARG ROCM_PYTORCH_IMAGE=rocm/pytorch:rocm10.1.0_ubuntu26.04_py3.14_pytorch_release_2.14.0
 FROM ${ROCM_PYTORCH_IMAGE}
 
 ARG DEBIAN_FRONTEND=noninteractive
