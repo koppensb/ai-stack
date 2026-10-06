@@ -1,16 +1,12 @@
-# syntax=docker/dockerfile:1.7
-
-FROM ubuntu:26.04
+FROM rocm/dev-ubuntu-26.04:latest
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG ROCM_INSTALLER=rocm-installer-10.0.0-4.run
-# Override ROCM_GFX_TARGETS to reduce build time and image size for a specific
-# GPU, for example: --build-arg ROCM_GFX_TARGETS=gfx1100
-ARG ROCM_GFX_TARGETS="gfx1201"
-# A branch can move upstream, but Docker may reuse the cached clone layer.
-# Rebuild without cache to refresh a floating ref; a commit pins source content.
-ARG LLAMA_CPP_REF=master
 
+# Override ROCM_GFX_TARGETS to reduce build time and image size for a specific GPU
+ARG ROCM_GFX_TARGETS="gfx1201"
+
+# Build branch/tag/commit of llama.cpp
+ARG LLAMA_CPP_REF=master
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -25,30 +21,13 @@ RUN apt-get update \
         rsync \
     && rm -rf /var/lib/apt/lists/*
 
-# Install the container-side ROCm SDK only. Host GPU drivers/devices are supplied
-# by the prepared host and AMD Container Toolkit, not by this image.
-RUN cd /tmp \
-    && curl -fsSLo "${ROCM_INSTALLER}" \
-        "https://repo.radeon.com/rocm/installer/rocm-runfile-installer/rocm-rel-10.0/${ROCM_INSTALLER}" \
-    && bash "${ROCM_INSTALLER}" \
-        deps=install \
-        target=/opt \
-        compo=core-sdk \
-        gfx="${ROCM_GFX_TARGETS}" \
-        rocm \
-        assumeyes \
-    && rm -rf "/tmp/${ROCM_INSTALLER}" /tmp/rocm-installer \
-    && /opt/rocm/core-10.0/bin/hipconfig --version
-
-ENV ROCM_PATH="/opt/rocm/core-10.0" \
-    PATH="/opt/rocm/core-10.0/bin:${PATH}" \
-    LD_LIBRARY_PATH="/opt/rocm/core-10.0/lib"
+# ROCm ist bereits im Base-Image vorhanden
+ENV ROCM_PATH=/opt/rocm \
+    PATH=/opt/rocm/bin:${PATH} \
+    LD_LIBRARY_PATH=/opt/rocm/lib:${LD_LIBRARY_PATH}
 
 WORKDIR /opt
 
-# The runfile accepts comma-separated GPU targets; CMake expects semicolons.
-# Disable host-native CPU tuning so the image is not tied to the build CPU.
-# Build the unified llama application as well as llama-server for model prefetch.
 RUN git clone --filter=blob:none https://github.com/ggml-org/llama.cpp.git \
     && cd llama.cpp \
     && git checkout "${LLAMA_CPP_REF}" \
@@ -68,8 +47,8 @@ RUN git clone --filter=blob:none https://github.com/ggml-org/llama.cpp.git \
     && test -x build/bin/llama \
     && build/bin/llama download --help >/dev/null
 
-ENV PATH="/opt/llama.cpp/build/bin:${PATH}" \
-    LD_LIBRARY_PATH="/opt/llama.cpp/build/bin:/opt/rocm/core-10.0/lib" \
+ENV PATH=/opt/llama.cpp/build/bin:${PATH} \
+    LD_LIBRARY_PATH=/opt/llama.cpp/build/bin:/opt/rocm/lib:${LD_LIBRARY_PATH} \
     HIP_VISIBLE_DEVICES=0
 
 WORKDIR /models
