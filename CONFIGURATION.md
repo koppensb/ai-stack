@@ -145,7 +145,13 @@ workflow. Seed widgets randomize by default; retain a seed for comparisons.
 `config/grafana/provisioning/dashboards/files/llama-cpp-inference-stack.json`
 contains panel descriptions, PromQL queries and selectors. Panels reference the
 stable datasource UID `prometheus`; keep it aligned with datasource provisioning.
-Rates and increases use counters to tolerate process resets. Optional speculative
+Rates and increases use counters to tolerate process resets. Generation and
+prompt throughput panels show aggregate tokens per second across the selected
+models and concurrent requests. They therefore need not match the per-request
+throughput printed in an individual llama.cpp completion log. The dashboard also
+shows an estimated aggregate rate per currently active request; this is useful
+for comparison, but is not exact per-completion timing. The decode-call metric
+counts `llama_decode()` calls, not generated tokens. Optional speculative
 metrics may be absent. Empty model panels can be normal when every model is
 unloaded; the router-health panel uses the always-scraped coordinator instead.
 This dashboard covers the main router, not the image-prompt router.

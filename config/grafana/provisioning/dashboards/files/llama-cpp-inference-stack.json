@@ -80,14 +80,26 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "$datasource" },
-      "description": "Generation throughput derived from monotonic counters; more reliable than the scrape-reset gauge on recent llama.cpp versions.",
+      "description": "Aggregate generation throughput across all selected models and requests. This is not the speed of one completion: concurrent requests add together. Compare with the per-active-request estimate.",
       "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "decimals": 1, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] }, "unit": "tps" }, "overrides": [] },
       "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
       "id": 4,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto", "wideLayout": true },
       "pluginVersion": "10.4.0",
       "targets": [ { "editorMode": "code", "expr": "sum(rate(llamacpp:tokens_predicted_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))", "instant": false, "legendFormat": "Generation", "range": true, "refId": "A" } ],
-      "title": "Generation Throughput",
+      "title": "Generated Tokens / s (Aggregate)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "Approximate generation speed per currently active request: aggregate generated tokens/s divided by current processing requests. This is a server-wide estimate, not an exact per-completion timing; it can vary as requests start and finish.",
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "decimals": 1, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] }, "unit": "tps" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "id": 18,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto", "wideLayout": true },
+      "pluginVersion": "10.4.0",
+      "targets": [ { "editorMode": "code", "expr": "sum(rate(llamacpp:tokens_predicted_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])) / clamp_min(sum(llamacpp:requests_processing{job=~\"$job\", instance=~\"$instance\"}), 1)", "instant": false, "legendFormat": "Estimated per active request", "range": true, "refId": "A" } ],
+      "title": "Generated Tokens / s per Active Request (Estimate)",
       "type": "stat"
     },
     {
@@ -104,14 +116,14 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "$datasource" },
-      "description": "Aggregate prompt evaluation and token generation rates.",
+      "description": "Aggregate prompt/prefill and generation rates across all selected models and requests. Concurrent requests are summed, so generation throughput can exceed the speed shown in one request's llama.cpp timing log.",
       "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 18, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "decimals": 1, "unit": "tps" }, "overrides": [] },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "id": 7,
       "options": { "legend": { "calcs": ["lastNotNull", "mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
-        { "editorMode": "code", "expr": "sum(rate(llamacpp:prompt_tokens_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))", "legendFormat": "Prompt / Prefill", "range": true, "refId": "A" },
-        { "editorMode": "code", "expr": "sum(rate(llamacpp:tokens_predicted_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))", "legendFormat": "Generation / Decode", "range": true, "refId": "B" }
+        { "editorMode": "code", "expr": "sum(rate(llamacpp:prompt_tokens_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))", "legendFormat": "Prompt / Prefill (aggregate)", "range": true, "refId": "A" },
+        { "editorMode": "code", "expr": "sum(rate(llamacpp:tokens_predicted_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))", "legendFormat": "Generation (aggregate)", "range": true, "refId": "B" }
       ],
       "title": "Token Throughput",
       "type": "timeseries"
@@ -162,7 +174,7 @@
       "options": { "legend": { "calcs": ["lastNotNull", "mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
         { "editorMode": "code", "expr": "avg(llamacpp:n_busy_slots_per_decode{job=~\"$job\", instance=~\"$instance\"})", "legendFormat": "Busy slots / decode", "range": true, "refId": "A" },
-        { "editorMode": "code", "expr": "sum(rate(llamacpp:n_decode_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))", "legendFormat": "Decode calls / s", "range": true, "refId": "B" }
+        { "editorMode": "code", "expr": "sum(rate(llamacpp:n_decode_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))", "legendFormat": "llama_decode() calls / s (not tokens)", "range": true, "refId": "B" }
       ],
       "title": "Continuous Batching Efficiency",
       "type": "timeseries"
