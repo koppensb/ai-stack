@@ -6,7 +6,7 @@
 
 The stack includes llama.cpp, Open WebUI, Open Terminal, ComfyUI, SearXNG web search, and observability services.
 ComfyUI is configured to build from
-`rocm/pytorch:rocm10.0_ubuntu26.04_py3.14_pytorch_release_2.13.0`, with
+`rocm/pytorch:rocm10.1.0_ubuntu26.04_py3.14_pytorch_release_2.14.0`, with
 the latest stable ComfyUI release and bundled ComfyUI-GGUF nodes.
 
 ---
