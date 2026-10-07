@@ -40,7 +40,6 @@ RUN git clone --filter=blob:none https://github.com/Comfy-Org/ComfyUI.git \
        fi \
     && git checkout --detach "${COMFYUI_REF}" \
     && printf 'ComfyUI release: %s\n' "${COMFYUI_REF}" \
-    && python3 -m pip install --upgrade pip setuptools wheel \
     && python3 -m pip install -r requirements.txt \
     && python3 -c "import torch; assert torch.version.hip, 'ROCm-enabled PyTorch is required'; print('PyTorch', torch.__version__, 'ROCm', torch.version.hip)"
 
