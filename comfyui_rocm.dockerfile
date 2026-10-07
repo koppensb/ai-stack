@@ -36,13 +36,13 @@ RUN git clone --filter=blob:none https://github.com/Comfy-Org/ComfyUI.git \
     && if [ "${COMFYUI_REF}" = latest ]; then \
         COMFYUI_REF="$(curl --fail --silent --show-error --location --retry 3 \
             https://api.github.com/repos/Comfy-Org/ComfyUI/releases/latest \
-            | python -c 'import json, sys; tag = json.load(sys.stdin)["tag_name"]; assert isinstance(tag, str) and tag; print(tag)')"; \
+            | python3 -c 'import json, sys; tag = json.load(sys.stdin)["tag_name"]; assert isinstance(tag, str) and tag; print(tag)')"; \
        fi \
     && git checkout --detach "${COMFYUI_REF}" \
     && printf 'ComfyUI release: %s\n' "${COMFYUI_REF}" \
-    && python -m pip install --upgrade pip setuptools wheel \
-    && python -m pip install -r requirements.txt \
-    && python -c "import torch; assert torch.version.hip, 'ROCm-enabled PyTorch is required'; print('PyTorch', torch.__version__, 'ROCm', torch.version.hip)"
+    && python3 -m pip install --upgrade pip setuptools wheel \
+    && python3 -m pip install -r requirements.txt \
+    && python3 -c "import torch; assert torch.version.hip, 'ROCm-enabled PyTorch is required'; print('PyTorch', torch.__version__, 'ROCm', torch.version.hip)"
 
 # The leejet fork supports the qwen_image21 GGUF architecture.
 # Keep bundled nodes outside the bind-mounted custom_nodes directory.
@@ -51,9 +51,9 @@ RUN git clone --filter=blob:none https://github.com/leejet/ComfyUI-GGUF.git \
         /opt/comfyui-bundled-nodes/ComfyUI-GGUF \
     && cd /opt/comfyui-bundled-nodes/ComfyUI-GGUF \
     && git checkout --detach "${COMFYUI_GGUF_REF}" \
-    && python -c "from pathlib import Path; assert 'qwen_image21' in Path('loader.py').read_text(), 'Qwen Image 2.1 GGUF support required'" \
-    && python -m pip install -r requirements.txt \
-    && python -c "import gguf, torch; assert torch.version.hip, 'ROCm-enabled PyTorch is required'" \
+    && python3 -c "from pathlib import Path; assert 'qwen_image21' in Path('loader.py').read_text(), 'Qwen Image 2.1 GGUF support required'" \
+    && python3 -m pip install -r requirements.txt \
+    && python3 -c "import gguf, torch; assert torch.version.hip, 'ROCm-enabled PyTorch is required'" \
     && printf 'bundled_nodes:\n  custom_nodes: /opt/comfyui-bundled-nodes\n' \
         > /opt/ComfyUI/extra_model_paths.yaml
 
@@ -62,7 +62,7 @@ WORKDIR /opt/ComfyUI
 # Open WebUI resumes chat after the worker publishes completion. Release GPU
 # allocations synchronously before that boundary, not via asynchronous /free.
 # Keep this build-time patch guarded: an upstream worker change needs review.
-RUN python - <<'PY_HANDOFF'
+RUN python3 - <<'PY_HANDOFF'
 import ast
 import textwrap
 from pathlib import Path
@@ -128,7 +128,7 @@ if len(marker_lines) != 1 or len(patched_calls) != 1 or marker_lines[0] >= patch
 path.write_text(patched)
 PY_HANDOFF
 
-RUN python -c "from pathlib import Path; assert 'class TextEncodeQwenImage21' in Path('comfy_extras/nodes_qwen.py').read_text(), 'Update ComfyUI for Qwen Image 2.1 support'"
+RUN python3 -c "from pathlib import Path; assert 'class TextEncodeQwenImage21' in Path('comfy_extras/nodes_qwen.py').read_text(), 'Update ComfyUI for Qwen Image 2.1 support'"
 
 RUN mkdir -p input output user models custom_nodes
 
@@ -139,5 +139,5 @@ EXPOSE 8188
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=10 \
     CMD curl -fsS http://127.0.0.1:8188/system_stats >/dev/null || exit 1
 
-ENTRYPOINT ["python", "main.py"]
+ENTRYPOINT ["python3", "main.py"]
 CMD ["--listen", "0.0.0.0", "--port", "8188"]
