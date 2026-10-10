@@ -157,12 +157,12 @@ Response quality:
 # remain as saved; temperature/top_p/top_k affect variety, not factual guarantees.
 ROLE_PARAMS = {
     "Coding": {
-        "temperature": 0.6, "top_p": 0.9, "top_k": 20, "repeat_penalty": 1.05,
+        "temperature": 1.0, "top_p": 0.9, "top_k": 20, "repeat_penalty": 1.05,
         "function_calling": "native",
         "system": CODING_SYSTEM_PROMPT,
     },
     "Allround": {
-        "temperature": 0.7, "top_p": 0.9, "top_k": 40, "repeat_penalty": 1.05,
+        "temperature": 1.0, "top_p": 0.9, "top_k": 40, "repeat_penalty": 1.05,
         "function_calling": "native",
         "system": ALLROUND_SYSTEM_PROMPT,
     },
@@ -171,7 +171,7 @@ ROLE_PARAMS = {
         "system": CREATIV_SYSTEM_PROMPT,
     },
     "Image Generation": {
-        "temperature": 0.9, "top_p": 0.9, "top_k": 20, "repeat_penalty": 1.05,
+        "temperature": 1.0, "top_p": 0.9, "top_k": 20, "repeat_penalty": 1.05,
         "function_calling": "native",
         "system": IMAGE_GENERATION_SYSTEM_PROMPT + IMAGE_CARDINALITY_POLICY,
     },
