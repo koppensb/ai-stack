@@ -1,0 +1,2 @@
+# Keep upstream bot-detection defaults; no local overrides are needed.
+# SearXNG loads this file even with server.limiter disabled in settings.yml.

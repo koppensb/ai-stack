@@ -1041,12 +1041,12 @@ so no Valkey service is needed. Do not expose it publicly with this configuratio
 Configuration and cache persist in `config/searxng/` and `data/searxng/`.
 The container manages ownership of these two directories at startup.
 
-The search profile explicitly retains eight engines from the upstream defaults:
+The search profile explicitly retains ten engines from the upstream defaults:
 
 | Search type | Engines | Selection |
 | --- | --- | --- |
-| General web | Brave, DuckDuckGo, Wikipedia | Default |
-| News | Brave News, DuckDuckGo News | `!news` or `categories=news` |
+| General web | Brave, DuckDuckGo, Google, Wikipedia | Default |
+| News | Brave News, DuckDuckGo News, Google News | `!news` or `categories=news` |
 | IT | GitHub, Stack Overflow | `!it`, `!gh`, or `!st` |
 | Science | arXiv | `!science` or `!arx` |
 
@@ -1058,27 +1058,40 @@ shopping and file-search providers. Their sites can still appear in general
 web results. To add a provider, add its exact upstream name to `keep_only`
 and configure it under `engines` if necessary.
 
-Google, Bing and Qwant are not forced on (currently disabled upstream).
+Google is explicitly enabled, overriding its upstream disabled default; Google
+News is limited to the news category. Validate both from the deployment server,
+since availability and CAPTCHA responses depend on the outgoing IP.
+Bing and Qwant are not forced on (currently disabled upstream).
 Startpage is currently marked inactive upstream because of its proof-of-work
 CAPTCHA. These choices follow the
 [upstream engine configuration](https://github.com/searxng/searxng/blob/master/searx/settings.yml);
 review them when upgrading. They are a conservative baseline, not a benchmark
 of engine availability from your server's IP address.
 
+Selected engines are queried together, not rotated as fallback providers. Engine
+weights affect result ranking, not request distribution. Provider rotation would
+require a routing layer that selects engines through SearXNG's `engines` search
+parameter; this stack does not currently include such a layer.
+
 Searches use moderate SafeSearch where supported and no fixed language filter,
 so German and English sources remain available. Autocomplete is disabled.
 The default engine timeout is 5 seconds, arXiv gets 8 seconds, and the maximum
 request timeout is 10 seconds. Upstream error/CAPTCHA suspension behavior is
 preserved. Engine weights remain equal; no domain is promoted unconditionally.
-Open WebUI consumes up to six results per search, runs one search-engine request
-at a time, and fetches up to three result pages concurrently. These are starting
-values balancing source coverage, latency and upstream load.
+For a private instance with a few users, the query-generation prompt requests
+at most one targeted query (or none when retrieval is unnecessary). Open WebUI
+consumes up to five results per search and fetches up to two result pages
+concurrently. Search concurrency is one per search operation; it does not impose
+a global limit across users or a minimum pause between requests. The prompt is
+not a hard request cap: agentic tool calls may perform additional searches.
+These defaults reduce load but do not prevent upstream CAPTCHA or rate limits.
 
-When updating an existing deployment, change `WEB_SEARCH_RESULT_COUNT=6` and
-`WEB_LOADER_CONCURRENT_REQUESTS=3` in its `.env` if those values were already set.
+When updating an existing deployment, set `WEB_SEARCH_RESULT_COUNT=5`,
+`WEB_SEARCH_CONCURRENT_REQUESTS=1` and `WEB_LOADER_CONCURRENT_REQUESTS=2` in its `.env`.
+Copy the updated `config/openwebui/start.py` to apply the query-generation prompt.
 Saved Open WebUI admin settings may also need updating. After copying the new
 settings, apply them with `sudo docker compose restart searxng` and
-`sudo docker compose up -d --no-deps openwebui`. Restart SearXNG explicitly:
+`sudo docker compose up -d --no-deps --force-recreate openwebui`. Restart SearXNG explicitly:
 changing a bind-mounted YAML file alone does not recreate its container.
 
 

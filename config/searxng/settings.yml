@@ -6,9 +6,11 @@ use_default_settings:
     keep_only:
       - brave
       - duckduckgo
+      - google
       - wikipedia
       - brave.news
       - duckduckgo news
+      - google news
       - github
       - stackoverflow
       - arxiv
@@ -41,7 +43,7 @@ outgoing:
   # Keep upstream HTTP and error-suspension settings.
 
 engines:
-  # Normal queries use these three sources; retain equal default ranking weights.
+  # Normal queries use these four sources; retain equal default ranking weights.
   - name: brave
     disabled: false
     categories: [general, web]
@@ -54,12 +56,19 @@ engines:
     # Open WebUI consumes results[], not SearXNG's separate infoboxes.
     display_type: [list]
 
+  - name: google
+    disabled: false
+    categories: [general, web]
+
   # Explicit categories or bangs select specialist sources. They are not queried
   # for every general web search (e.g. !news, !gh, !st, !arx).
   - name: brave.news
     disabled: false
     categories: [news]
   - name: duckduckgo news
+    disabled: false
+    categories: [news]
+  - name: google news
     disabled: false
     categories: [news]
   - name: github
