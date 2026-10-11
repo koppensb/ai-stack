@@ -1,5 +1,5 @@
 import datetime, getpass, ipaddress, os, pathlib, re, secrets, shutil, subprocess, warnings
-from security_settings import select_llama_key, strong_secret, grafana_key, write_comfyui_auth
+from security_settings import is_placeholder, select_llama_key, strong_secret, grafana_key, write_comfyui_auth
 
 root = pathlib.Path('/opt/ai-stack')
 source = pathlib.Path(os.environ['AI_INSTALL_SOURCE'])
@@ -36,7 +36,7 @@ secret = root/'config/llama-cpp/api-key.txt'
 old_key = secret.read_text().strip() if secret.exists() else ''
 key = select_llama_key(values.get('LLAMA_CPP_API_KEY', ''), old_key)
 saved_password = values.get('GRAFANA_ADMIN_PASSWORD', '')
-if saved_password in ('', 'admin', 'changeme'):
+if is_placeholder(saved_password):
     saved_password = ''
 has_grafana_db = (root/'data/grafana/grafana.db').exists()
 if has_grafana_db:
@@ -47,7 +47,7 @@ if has_grafana_db and not password:
     raise SystemExit('Existing Grafana database: enter the current password in .env first.')
 password = password or secrets.token_hex(24)
 hf_token = values.get('HF_TOKEN', '')
-if hf_token == 'hf_your_token_here':
+if is_placeholder(hf_token):
     hf_token = ''
 hf_token = prompt_secret('HF_TOKEN', hf_token, 'keep the saved value' if hf_token else 'skip (optional)')
 # Generate once without prompting; retain the synchronized deployment key.
@@ -96,7 +96,7 @@ for image_key, previous in (
 updates['HF_TOKEN'] = hf_token
 search_secret = values.get('SEARXNG_SECRET', '')
 updates['SEARXNG_SECRET'] = (secrets.token_hex(32)
-                            if search_secret in ('', 'ultrasecretkey') else search_secret)
+                            if not search_secret or is_placeholder(search_secret) else search_secret)
 terminal_key = values.get('OPEN_TERMINAL_API_KEY', '')
 updates['OPEN_TERMINAL_API_KEY'] = strong_secret('OPEN_TERMINAL_API_KEY', terminal_key or secrets.token_hex(32))
 webui_secret = values.get('WEBUI_SECRET_KEY', '')

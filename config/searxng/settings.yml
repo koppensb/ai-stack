@@ -16,8 +16,8 @@ use_default_settings:
       - arxiv
 
 server:
-  # Overridden by SEARXNG_SECRET; the installer generates a random value.
-  secret_key: "ultrasecretkey"
+  # Required SEARXNG_SECRET is supplied by Compose; installer generates it.
+  secret_key: ""
   # Requests arrive from internal Open WebUI; no public search endpoint is exposed.
   # Revisit rate limiting if this service is exposed directly to other clients.
   limiter: false

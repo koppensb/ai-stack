@@ -60,7 +60,7 @@ is not a token-revocation operation.
 ## API and encryption keys
 
 New service keys use cryptographic randomness. The installer rejects known
-examples, short or excessively repetitive keys; this is a format check, not proof
+examples (recognized by SHA-256 fingerprints), short or excessively repetitive keys; this is a format check, not proof
 of entropy. It checks both llama.cpp key sources and rotates the obsolete bundled
 example value. Real mismatched keys are rejected rather than guessed. The file
 secret, `.env` and managed WebUI provider credentials are kept aligned. External
@@ -149,3 +149,12 @@ Before exposing the updated services, verify on the host:
   hostname and is not near expiry. Arrange CA trust and certificate renewal on the
   host; this update does not replace or renew certificates.
 - Review host firewall/NAT and recorded image vulnerabilities independently.
+
+## Empty credential templates
+
+Credential fields in `.env.example` and SearXNG settings are empty. Compose requires
+nonempty runtime secrets; the installer generates missing values. Historical
+placeholder values are recognized by non-secret fingerprints so upgrades do not
+restore insecure example keys. Session/encryption keys are never blindly rotated.
+For a source-only syntax check, use `python3 scripts/validate_compose.py`: it gives
+Compose temporary random values, writes no credentials and starts no services.

@@ -284,7 +284,7 @@ services:
     expose:
       - "8080"
     environment:
-      # The upstream sentinel prevents startup until a real secret is configured.
+      # Compose rejects an empty value; the installer generates a random secret.
       SEARXNG_SECRET: ${SEARXNG_SECRET:?Set SEARXNG_SECRET in .env (see .env.example)}
     volumes:
       - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/searxng:/etc/searxng

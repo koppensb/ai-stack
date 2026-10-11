@@ -965,8 +965,8 @@ external notifications require an Alertmanager deployment and configuration.
 Validate the Compose configuration from the source tree:
 
 ```bash
-# Non-secret placeholders for syntax validation only; do not start services with them.
-WEBUI_SECRET_KEY=validation-only OPEN_TERMINAL_API_KEY=validation-only LLAMA_CPP_API_KEY=validation-only GRAFANA_ADMIN_PASSWORD=validation-only GRAFANA_SECRET_KEY=validation-only SEARXNG_SECRET=validation-only docker compose --env-file .env.example config --quiet
+# Temporary random credentials are used only for syntax validation, never saved.
+python3 scripts/validate_compose.py
 ```
 
 Offline checks do not validate GPU inference. On the deployed host, also run:
