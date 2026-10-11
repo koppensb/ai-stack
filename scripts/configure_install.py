@@ -1,4 +1,6 @@
 import datetime, getpass, ipaddress, os, pathlib, re, secrets, shutil, subprocess, warnings
+from security_settings import select_llama_key, strong_secret, grafana_key, write_comfyui_auth
+
 root = pathlib.Path('/opt/ai-stack')
 source = pathlib.Path(os.environ['AI_INSTALL_SOURCE'])
 path = root / '.env'
@@ -32,11 +34,7 @@ def prompt_secret(name, default, empty_action):
 
 secret = root/'config/llama-cpp/api-key.txt'
 old_key = secret.read_text().strip() if secret.exists() else ''
-saved_key = values.get('LLAMA_CPP_API_KEY', '')
-if saved_key in ('', 'sk-llm-inference-stack-super-secret-key-12345'):
-    saved_key = old_key
-if old_key and saved_key != old_key:
-    raise SystemExit('.env and api-key.txt contain different keys; synchronize them first.')
+key = select_llama_key(values.get('LLAMA_CPP_API_KEY', ''), old_key)
 saved_password = values.get('GRAFANA_ADMIN_PASSWORD', '')
 if saved_password in ('', 'admin', 'changeme'):
     saved_password = ''
@@ -53,7 +51,15 @@ if hf_token == 'hf_your_token_here':
     hf_token = ''
 hf_token = prompt_secret('HF_TOKEN', hf_token, 'keep the saved value' if hf_token else 'skip (optional)')
 # Generate once without prompting; retain the synchronized deployment key.
-key = saved_key or secrets.token_hex(32)
+strong_secret("GRAFANA_ADMIN_PASSWORD", password, 16)
+# Fail before changing any credentials when an existing encrypted DB needs migration.
+grafana_secret = grafana_key(root, values.get("GRAFANA_SECRET_KEY", ""))
+saved_comfy_password = values.get("COMFYUI_AUTH_PASSWORD", "")
+comfy_password = prompt_secret(
+    "COMFYUI_AUTH_PASSWORD (minimum 24 characters)", saved_comfy_password,
+    "keep the saved value" if saved_comfy_password else "generate a password",
+) or secrets.token_hex(24)
+strong_secret("COMFYUI_AUTH_PASSWORD", comfy_password, 24)
 # Backfill newly introduced deployment variables without overwriting saved values.
 # Compose parses both files, so quoted values and precedence follow Compose rules.
 template_names = re.findall(r'^([A-Z][A-Z0-9_]*)=', (source/'.env.example').read_text(), re.M)
@@ -68,6 +74,7 @@ for new_name, old_name in (
         updates[new_name] = values[old_name]
 updates.update({'AI_STACK_ROOT': str(root), 'PUBLIC_IP_OR_DOMAIN': host,
            'LLAMA_CPP_API_KEY': key, 'GRAFANA_ADMIN_PASSWORD': password,
+           'GRAFANA_SECRET_KEY': grafana_secret, 'COMFYUI_AUTH_PASSWORD': comfy_password,
            'ROCM_GFX_TARGETS': os.environ['AI_INSTALL_GFX'],
            'LLAMA_CPP_REF': os.environ['AI_INSTALL_REF'] or values['LLAMA_CPP_REF']})
 # Enable prompt generation when introducing the dedicated image-prompt service.
@@ -91,9 +98,12 @@ search_secret = values.get('SEARXNG_SECRET', '')
 updates['SEARXNG_SECRET'] = (secrets.token_hex(32)
                             if search_secret in ('', 'ultrasecretkey') else search_secret)
 terminal_key = values.get('OPEN_TERMINAL_API_KEY', '')
-updates['OPEN_TERMINAL_API_KEY'] = terminal_key or secrets.token_hex(32)
+updates['OPEN_TERMINAL_API_KEY'] = strong_secret('OPEN_TERMINAL_API_KEY', terminal_key or secrets.token_hex(32))
 webui_secret = values.get('WEBUI_SECRET_KEY', '')
-updates['WEBUI_SECRET_KEY'] = webui_secret or secrets.token_hex(32)
+if not webui_secret and (root/'data/openwebui/webui.db').exists():
+    raise SystemExit('Existing Open WebUI database: recover and set the original WEBUI_SECRET_KEY before upgrading; it must not be regenerated.')
+updates['WEBUI_SECRET_KEY'] = strong_secret('WEBUI_SECRET_KEY', webui_secret or secrets.token_hex(32))
+strong_secret('SEARXNG_SECRET', updates['SEARXNG_SECRET'])
 # Values are written as single-quoted Compose literals, not shell code. Reject
 # unsupported characters before writing so credentials cannot alter .env syntax.
 for name, value in updates.items():
@@ -113,6 +123,7 @@ updated = '\n'.join(lines) + '\n'
 # Retain this marker across interrupted installs until consumers are recreated.
 if old_key and old_key != key:
     (root/'.installer-recreate-required').touch(mode=0o600)
+    print('llama.cpp API key rotated. Update external API clients; managed WebUI connections are synchronized at startup.')
 if updated != original:
     backup = path.with_name('.env.backup-' + datetime.datetime.now().strftime('%Y%m%d%H%M%S%f'))
     shutil.copyfile(path, backup); backup.chmod(0o600)
@@ -120,6 +131,7 @@ if updated != original:
     temporary.touch(mode=0o600); temporary.write_text(updated); temporary.chmod(0o600)
     temporary.replace(path)
 path.chmod(0o600)
+write_comfyui_auth(root, values.get('COMFYUI_AUTH_USER', 'comfyui'), comfy_password)
 if not secret.exists() or old_key != key:
     secret.touch(mode=0o600); secret.chmod(0o600); secret.write_text(key + '\n')
 # Preserve an existing certificate pair; changing --host does not renew it.

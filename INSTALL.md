@@ -174,14 +174,13 @@ files resume; remove a corrupt completed file before retrying its download.
 
 The installer starts Open Terminal and registers it in Open WebUI, including
 existing databases. Select **Open Terminal** in a chat and use a model with native
-function calling. The connection is available to all approved, signed-in users.
-Permissions can be adjusted in **Settings → Admin → Integrations → Open Terminal**.
+function calling. Access is limited to administrators and members of the managed
+`Terminal-Zugriff` group. Add trusted users under **Settings → Admin → Groups**.
 All users of this connection share `data/open-terminal` (`/home/user` in the
 container). The service has outbound network access and no published host port.
 Its key is generated once and preserved in `.env` as `OPEN_TERMINAL_API_KEY`;
-`OPEN_TERMINAL_VERSION` controls the image tag. Installer reruns retain existing
-grants and add read access for all signed-in users. An intentional disable is
-preserved.
+`OPEN_TERMINAL_VERSION` controls the image tag. Startup and installer reruns enforce
+the group grant and remove the old wildcard grant. An intentional disable is preserved.
 
 ## Access and operations
 
@@ -190,8 +189,12 @@ preserved.
 - ComfyUI: `https://<host>:8444/` (or `COMFYUI_HTTPS_PORT`)
 
 The self-signed certificate causes a browser warning. Ports 8080, 8443 and the
-ComfyUI HTTPS port bind to all host addresses. ComfyUI has no additional login;
-restrict network access to the intended trusted clients.
+ComfyUI HTTPS port bind to all host addresses. ComfyUI requires the separate
+`COMFYUI_AUTH_USER` / `COMFYUI_AUTH_PASSWORD` credentials stored in the root-only
+`.env`. The interactive installer asks for the ComfyUI password with hidden input
+(minimum 24 characters). Enter keeps the saved value or generates a password when
+none exists. `--non-interactive` keeps/generates it without asking. Restrict network
+access to the intended LAN/VPN clients.
 
 ```bash
 cd /opt/ai-stack
@@ -216,3 +219,15 @@ generation and one reference-image edit on the actual GPU after installation.
 Floating image tags and source branches can change. ComfyUI deliberately follows
 the latest stable release on each Compose build; record build output for diagnosis.
 Other configurable image/source references can be pinned for reproducibility.
+
+## Security update
+
+Read [SECURITY.md](SECURITY.md) before upgrading an existing installation. The
+installer creates ComfyUI proxy credentials and a separate Grafana encryption
+key when safe. It rejects known example/weak secrets and refuses to invent a new
+key for existing encrypted data. Keep the original `.env` and database backups.
+After pulling/building, the installer writes `compose.image-lock.json` and
+`image-inventory.json`; normal systemd startup uses these installed image identities.
+An installer update deliberately refreshes this lock. For manual starts, append
+`-f compose.image-lock.json` to the Compose file arguments. Do not prune locked
+images until the next successful update. No vulnerability scan is implied by locking.

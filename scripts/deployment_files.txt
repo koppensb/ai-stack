@@ -6,6 +6,7 @@ config/llama-cpp/models.ini
 config/llama-cpp-small/models.ini
 config/llama-metrics-discovery/llama_metrics_discovery.py
 config/nginx/nginx.conf
+config/nginx/security.conf.template
 config/prometheus/prometheus.yml
 config/prometheus/rules.yml
 config/searxng/settings.yml
@@ -16,6 +17,9 @@ config/grafana/provisioning/datasources/prometheus.yml
 config/grafana/provisioning/dashboards/dashboards.yml
 config/grafana/provisioning/dashboards/files/llama-cpp-inference-stack.json
 config/openwebui/start.py
+config/openwebui/apply_open_terminal.py
+config/openwebui/apply_security.py
+config/openwebui/apply_qwen_images.py
 config/openwebui/apply_context_compaction.py
 config/openwebui/apply_openwebui_parameters.py
 config/openwebui/verify_qwen_workflows.py

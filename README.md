@@ -482,6 +482,8 @@ At minimum, replace these example values:
 
 - `LLAMA_CPP_API_KEY`: key used by Open WebUI and the test scripts.
 - `GRAFANA_ADMIN_PASSWORD`: initial Grafana administrator password.
+- `GRAFANA_SECRET_KEY`: stable random encryption key; see [SECURITY.md](SECURITY.md) before upgrading existing databases.
+- `COMFYUI_AUTH_USER` / `COMFYUI_AUTH_PASSWORD`: separate ComfyUI HTTPS login.
 - `SEARXNG_SECRET`: random secret generated with `openssl rand -hex 32`.
 - `PUBLIC_IP_OR_DOMAIN`: hostname or IP used in Grafana links.
 - `HF_TOKEN`: Hugging Face token, when the selected model requires one.
@@ -906,7 +908,7 @@ NGINX publishes the main stack endpoints to the VM host:
 
 ComfyUI is available through the same NGINX reverse proxy and TLS certificate:
 
-- ComfyUI: `https://<host>:8444/`
+- ComfyUI: `https://<host>:8444/` (separate HTTPS Basic authentication)
 
 Its native port 8188 is available only on the internal Docker network. Change
 `COMFYUI_HTTPS_PORT` in `.env` if port 8444 is already occupied. The certificate
@@ -964,7 +966,7 @@ Validate the Compose configuration from the source tree:
 
 ```bash
 # Non-secret placeholders for syntax validation only; do not start services with them.
-WEBUI_SECRET_KEY=validation-only OPEN_TERMINAL_API_KEY=validation-only docker compose --env-file .env.example config --quiet
+WEBUI_SECRET_KEY=validation-only OPEN_TERMINAL_API_KEY=validation-only LLAMA_CPP_API_KEY=validation-only GRAFANA_ADMIN_PASSWORD=validation-only GRAFANA_SECRET_KEY=validation-only SEARXNG_SECRET=validation-only docker compose --env-file .env.example config --quiet
 ```
 
 Offline checks do not validate GPU inference. On the deployed host, also run:
@@ -987,8 +989,9 @@ has no Docker socket or other stack-data mounts.
 Use the updated installer with `--update-files` to generate the shared API key,
 prepare directory permissions, pull the image and register the connection in an
 existing Open WebUI database (see [INSTALL.md](INSTALL.md)). Existing terminal
-connections and existing grants are retained. The managed connection receives read
-access for all approved, signed-in users; an intentional disable is preserved.
+connections are retained. The managed connection is restricted to the explicit
+`Terminal-Zugriff` group; an intentional disable is preserved. Add trusted members
+in Admin Settings. Existing wildcard grants on this connection are removed.
 
 For manual deployments:
 
@@ -1011,9 +1014,9 @@ installations; the setup helper merges it into saved settings on existing ones.
 After changing the key, recreate both services and rerun the helper.
 
 Refresh Open WebUI and select **Open Terminal** in the chat. Use native function
-calling with a tool-capable model. All approved, signed-in users have access by
-default. Permissions can be adjusted under **Settings → Admin → Integrations → Open Terminal**;
-rerunning the setup helper restores access for all signed-in users.
+calling with a tool-capable model. Only members of the managed `Terminal-Zugriff`
+group and administrators have access. Manage membership under **Settings → Admin → Groups**;
+startup and setup helpers enforce the group restriction on the managed connection.
 This is a shared workspace for everyone granted access, not a separate container
 per user. Pin tested `OPEN_TERMINAL_VERSION` and `OPENWEBUI_VERSION` tags when
 reproducible upgrades are needed.
@@ -1591,3 +1594,13 @@ and `data/` before upgrades.
 - At least one configured model can answer an authenticated chat request.
 - The provisioned Grafana dashboard is available and Prometheus parses its rules.
   Missing optional speculative-decoding metrics may leave their panels empty.
+
+## Security policy and upgrades
+
+See [SECURITY.md](SECURITY.md) for ComfyUI password setup, the terminal access group,
+CORS, existing encryption-key migration, image locking and deployment checks.
+Deploy this security update with the installer and `--update-files`; copying only
+the Compose file omits the generated authentication file and new secrets.
+Installer/systemd startup uses `compose.image-lock.json` to retain installed image
+identities. Include `-f compose.image-lock.json` after the base Compose file in
+manual operational commands when using this lock.

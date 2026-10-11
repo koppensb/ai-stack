@@ -667,6 +667,9 @@ async def bootstrap_from_backend():
     from open_webui.models.config import Config
     from open_webui.models.models import ModelForm, Models
     from open_webui.models.users import Users
+    from open_webui.models.groups import Groups, GroupForm
+    from apply_security import apply_security
+    await apply_security(Config, Users, Groups, GroupForm)
     return await bootstrap_once(Models, Users, ModelForm, Config)
 
 

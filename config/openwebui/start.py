@@ -138,10 +138,8 @@ def terminal_connection():
         "key": key,
         "auth_type": "bearer",
         "enabled": True,
-        # Shared workspace available to all approved, signed-in users.
-        "config": {"access_grants": [
-            {"principal_type": "user", "principal_id": "*", "permission": "read"},
-        ]},
+        # Fail closed until the startup helper resolves the explicit access group.
+        "config": {"access_grants": []},
     }
 
 

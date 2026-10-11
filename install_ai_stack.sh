@@ -73,7 +73,7 @@ MANIFEST="$SOURCE/scripts/deployment_files.txt"
 while IFS= read -r file; do
   [[ -f "$SOURCE/$file" ]] || die "Missing deployment file: $file"
 done < "$MANIFEST"
-for f in config/openwebui/apply_open_terminal.py scripts/download_models.py scripts/check_managed_files.py scripts/configure_install.py scripts/check_amd_runtime.py scripts/verify_comfyui_gpu.py config/openwebui/apply_qwen_images.py config/openwebui/apply_openwebui_parameters.py config/openwebui/verify_qwen_workflows.py ai-stack.service .env.example; do
+for f in config/openwebui/apply_open_terminal.py scripts/download_models.py scripts/check_managed_files.py scripts/configure_install.py scripts/security_settings.py scripts/lock_images.py scripts/check_amd_runtime.py scripts/verify_comfyui_gpu.py config/openwebui/apply_qwen_images.py config/openwebui/apply_openwebui_parameters.py config/openwebui/verify_qwen_workflows.py ai-stack.service .env.example; do
   [[ -f "$SOURCE/$f" ]] || die "Missing source file: $SOURCE/$f (see --source)."
 done
 if [[ "$SOURCE" != "$TARGET" && -d "$TARGET" ]] && (( ! UPDATE_FILES )); then
@@ -102,7 +102,7 @@ printf '%s\n' "$DETECTED" | grep -Fxq "$GFX" || die 'The selected --gfx target w
 log 'Installing base packages'
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y ca-certificates curl gnupg openssl python3 rsync acl
+apt-get install -y ca-certificates curl gnupg openssl python3 rsync acl apache2-utils
 if ! command -v docker >/dev/null || ! docker compose version >/dev/null 2>&1 || ! docker buildx version >/dev/null 2>&1; then
   for package in docker.io docker-compose docker-compose-v2 docker-doc docker-buildx podman-docker containerd runc; do
     if [[ $(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true) == 'install ok installed' ]]; then
@@ -179,7 +179,12 @@ cd "$TARGET"
 if [[ ! -f .env ]]; then install -m 0600 "$SOURCE/.env.example" .env; fi
 # Compose parses .env directly. Values are never converted into shell code.
 # The parent environment must not override the saved configuration.
-compose() { env -i PATH="$PATH" HOME=/root docker compose --project-name ai-stack --env-file "$TARGET/.env" -f "$TARGET/docker-compose.yml" -f "$TARGET/compose.install.yml" "$@"; }
+AI_USE_IMAGE_LOCK=0
+compose() {
+  local image_lock_args=()
+  if ((AI_USE_IMAGE_LOCK)); then image_lock_args=(-f "$TARGET/compose.image-lock.json"); fi
+  env -i PATH="$PATH" HOME=/root docker compose --project-name ai-stack --env-file "$TARGET/.env" -f "$TARGET/docker-compose.yml" -f "$TARGET/compose.install.yml" "${image_lock_args[@]}" "$@"
+}
 export AI_INSTALL_SOURCE="$SOURCE"
 export AI_INSTALL_NON_INTERACTIVE="$NON_INTERACTIVE"
 export AI_INSTALL_HOST="$HOST_NAME" AI_INSTALL_GFX="$GFX" AI_INSTALL_REF="$LLAMA_REF"
@@ -215,6 +220,8 @@ compose config --quiet
 log "Building ROCm images (GPU: $GFX); the initial build may take a long time"
 compose build llama-cpp comfyui
 compose pull nginx openwebui open-terminal searxng search-gateway llama-metrics-discovery prometheus grafana
+python3 "$SOURCE/scripts/lock_images.py" --root "$TARGET"
+AI_USE_IMAGE_LOCK=1
 
 # Prefetch is intentionally before service startup: readiness should not wait on
 # multi-gigabyte model downloads. This step still runs with --no-start.
@@ -260,5 +267,6 @@ if ((START)); then
 fi
 log 'Setup complete'
 printf 'Configuration and credentials: %s/.env (readable by root only)\n' "$TARGET"
-printf 'Open WebUI: https://<Host>:8443/ | Grafana: https://<Host>:8443/grafana/ (admin)\nComfyUI: https://<Host>:8444/ (unless COMFYUI_HTTPS_PORT was changed)\n'
+printf 'Open WebUI: https://<Host>:8443/ | Grafana: https://<Host>:8443/grafana/ (admin)\nComfyUI: https://<Host>:8444/ (HTTPS Basic auth; credentials in .env)\n'
+printf 'Terminal access: add trusted users to the Terminal-Zugriff group in Open WebUI.\n'
 printf 'Self-signed TLS: expect a browser warning. Model files are downloaded; VRAM loading happens on demand.\n'

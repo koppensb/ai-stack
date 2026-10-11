@@ -61,3 +61,12 @@ instructions.txt
 /data/openwebui/
 /data/prometheus/
 /data/grafana/
+
+# Shared terminal workspace, gateway runtime state and proxy credentials
+/data/open-terminal/
+/data/search-gateway/
+/config/nginx/comfyui.htpasswd
+/compose.image-lock.json
+/image-inventory.json
+/.image-lock-*
+/config/nginx/.comfyui-auth-*

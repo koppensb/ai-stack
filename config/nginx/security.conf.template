@@ -1,0 +1,28 @@
+# Rendered by the official NGINX entrypoint. Only PUBLIC_ORIGIN and COMFYUI_ORIGIN are substituted.
+map $http_origin $api_origin_allowed {
+    default 0;
+    "" 1;
+    "${PUBLIC_ORIGIN}" 1;
+}
+map $uri $is_model_api {
+    default 0;
+    ~^/v1/ 1;
+}
+map "$is_model_api:$http_origin" $api_cors_origin {
+    default "";
+    "1:${PUBLIC_ORIGIN}" "${PUBLIC_ORIGIN}";
+}
+map $api_cors_origin $api_cors_methods {
+    "" "";
+    default "GET, POST, OPTIONS";
+}
+map $api_cors_origin $api_cors_headers {
+    "" "";
+    default "Authorization, Content-Type";
+}
+
+map $http_origin $comfyui_origin_allowed {
+    default 0;
+    "" 1;
+    "${COMFYUI_ORIGIN}" 1;
+}

@@ -245,6 +245,11 @@ services:
         condition: service_started
       grafana:
         condition: service_started
+    environment:
+      PUBLIC_ORIGIN: https://${PUBLIC_IP_OR_DOMAIN:?Set PUBLIC_IP_OR_DOMAIN}:8443
+      COMFYUI_ORIGIN: https://${PUBLIC_IP_OR_DOMAIN:?Set PUBLIC_IP_OR_DOMAIN}:${COMFYUI_HTTPS_PORT:?Set COMFYUI_HTTPS_PORT}
+      NGINX_ENVSUBST_FILTER: "^(PUBLIC_ORIGIN|COMFYUI_ORIGIN)"
+      NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx/generated
     ports:
       - "8080:80"
       - "8443:443"
@@ -252,8 +257,11 @@ services:
     volumes:
       - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/nginx/certs:/etc/nginx/certs:ro
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT}/config/nginx/security.conf.template:/etc/nginx/templates/security.conf.template:ro
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT}/config/nginx/comfyui.htpasswd:/etc/nginx/comfyui.htpasswd:ro
     read_only: true
     tmpfs:
+      - /etc/nginx/generated
       - /var/cache/nginx
       - /var/run
       - /tmp
@@ -324,8 +332,8 @@ services:
       retries: 3
       start_period: 10s
 
-  # One shared persistent workspace for authorized terminal users, not per-user
-  # isolation. Access grants are managed separately from model-preset sharing.
+  # One shared persistent workspace for the explicit terminal group, not per-user
+  # isolation. The startup helper removes the old all-user connection grant.
   open-terminal:
     image: ghcr.io/open-webui/open-terminal:${OPEN_TERMINAL_VERSION:?Set OPEN_TERMINAL_VERSION in .env (see .env.example)}
     container_name: open-terminal
@@ -399,6 +407,10 @@ services:
       TOOL_SEARCH_DEFER_BUILTIN_TOOLS: ${TOOL_SEARCH_DEFER_BUILTIN_TOOLS:-false}
       WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:?Set WEBUI_SECRET_KEY in .env (see .env.example)}
       WEBUI_AUTH: "true"
+      CORS_ALLOW_ORIGIN: https://${PUBLIC_IP_OR_DOMAIN:?Set PUBLIC_IP_OR_DOMAIN}:8443
+      CLOSE_SIGNUP_AFTER_BOOTSTRAP: ${CLOSE_SIGNUP_AFTER_BOOTSTRAP:-true}
+      OPEN_TERMINAL_ACCESS_GROUP: ${OPEN_TERMINAL_ACCESS_GROUP:-Terminal-Zugriff}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-4h}
       WEBUI_URL: https://${PUBLIC_IP_OR_DOMAIN:?Set PUBLIC_IP_OR_DOMAIN in .env (see .env.example)}:8443
       ENABLE_OLLAMA_API: "false"
       ENABLE_OPENAI_API: "true"
@@ -540,6 +552,9 @@ services:
       - monitoring-net
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env (see .env.example)}
+      GF_SECURITY_SECRET_KEY: ${GRAFANA_SECRET_KEY:?Run the installer to configure a Grafana encryption key}
+      GF_SECURITY_COOKIE_SECURE: "true"
+      GF_SECURITY_COOKIE_SAMESITE: lax
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_SERVER_ROOT_URL: https://${PUBLIC_IP_OR_DOMAIN:?Set PUBLIC_IP_OR_DOMAIN in .env (see .env.example)}:8443/grafana/
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"

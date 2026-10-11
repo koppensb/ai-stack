@@ -12,9 +12,9 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/opt/ai-stack
-ExecStart=/usr/bin/docker compose --project-name ai-stack --env-file /opt/ai-stack/.env -f docker-compose.yml up -d --no-build --pull never
+ExecStart=/usr/bin/docker compose --project-name ai-stack --env-file /opt/ai-stack/.env -f docker-compose.yml -f compose.image-lock.json up -d --no-build --pull never
 # Stop preserves containers, networks and persistent data for the next start.
-ExecStop=/usr/bin/docker compose --project-name ai-stack --env-file /opt/ai-stack/.env -f docker-compose.yml stop
+ExecStop=/usr/bin/docker compose --project-name ai-stack --env-file /opt/ai-stack/.env -f docker-compose.yml -f compose.image-lock.json stop
 TimeoutStartSec=300
 TimeoutStopSec=300
 
