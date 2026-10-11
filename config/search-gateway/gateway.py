@@ -93,7 +93,13 @@ def normalize(params):
     if not q or len(q) > 2048:
         raise Failure(400, 'q must contain 1..2048 characters')
     tokens, routes = [], []
-    for token in q.split():
+    query_tokens = q.split()
+    inline_language = None
+    if query_tokens[0].startswith(':'):
+        inline_language = query_tokens.pop(0)[1:]
+        if not re.fullmatch(r'[a-z]{2,3}(?:-[A-Za-z]{2,4})?', inline_language):
+            raise Failure(400, 'Invalid leading language marker')
+    for token in query_tokens:
         if token.startswith('!'):
             route = token[1:].lower().replace('_', ' ').replace('-', ' ')
             route = ALIASES.get(route, route)
@@ -101,7 +107,7 @@ def normalize(params):
                 raise Failure(400, 'Unsupported search shortcut')
             routes.append(route)
         elif token.startswith(':') or re.fullmatch(r'<\d+', token):
-            raise Failure(400, 'Use language parameter; inline language/timeout controls are unsupported')
+            raise Failure(400, 'Use one leading language marker; timeout controls are unsupported')
         else:
             tokens.append(token)
     # Remove selection syntax before SearXNG sees q, so it cannot fan out again.
@@ -131,7 +137,7 @@ def normalize(params):
         raise Failure(400, 'Engine does not belong to selected category')
     # Existing Open WebUI settings may still explicitly send "all". Use the
     # stack's German default for unspecified/all, preserving explicit languages.
-    language = p.get('language', '').strip()
+    language = inline_language or p.get('language', '').strip()
     if language in ('', 'all'):
         language = 'de'
     if not re.fullmatch(r'(?:all|auto|[a-z]{2,3}(?:-[A-Za-z]{2,4})?)', language):

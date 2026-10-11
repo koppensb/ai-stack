@@ -15,7 +15,7 @@ running deployment's saved settings.
 | `comfyui_rocm.dockerfile` | Latest stable ComfyUI, GGUF nodes and completion-time VRAM cleanup patch | Rebuild image and recreate ComfyUI |
 | `config/llama-cpp/models.ini` | Main router model IDs, downloads and per-model loading options | Prefetch new assets, then restart/recreate the router |
 | `config/llama-cpp-small/models.ini` | Small-model task router preset | Prefetch new assets, then restart/recreate that router |
-| `config/openwebui/apply_model_parameters.py` | Four workspace presets, English system prompts, sampling defaults and public read grants | Initial signup; explicit rerun for later prompt/default changes |
+| `config/openwebui/apply_openwebui_parameters.py` | Global settings migrations, workspace presets, system prompts, sampling defaults and public read grants | Pending migrations on startup; explicit rerun for preset defaults |
 | Open WebUI database | Saved admin settings, workspace models, users, access grants and initialization markers | Apply the relevant helper or edit through the UI; restart to clear cached settings |
 | `config/nginx/nginx.conf` | TLS listeners and proxy routes | Validate with `nginx -t`, then reload/restart NGINX |
 | `config/searxng/settings.yml` | Search engine allowlist, result formats and upstream timeouts | Restart SearXNG |
@@ -45,7 +45,7 @@ reset presets after their initialization marker has been saved.
 - `scripts/deployment_files.txt` is a machine-read copy allowlist: one relative
   file path per line. Do not add comments or blank lines; the installer treats
   every line as a filename. Source-only setup helpers and this guide need not
-  be deployed. `apply_model_parameters.py` is included because startup calls it.
+  be deployed. `apply_openwebui_parameters.py` is included because startup calls it.
 - `scripts/download_models.py` reads both router INI files, handles optional MTP
   or draft assets, and runs the built `llama download` command without starting
   inference. Its `IMAGE_ASSETS` manifest supplies ComfyUI weights. Completed
@@ -64,9 +64,7 @@ reset presets after their initialization marker has been saved.
 - `config/openwebui/verify_qwen_workflows.py` compares API graph inputs and links
   with ComfyUI's `/object_info`. It checks model availability but does not run
   generation or prove that weights fit into GPU memory.
-- `scripts/tests/test_model_preset_access.py` uses in-memory store doubles to
-  check sharing migration, retries, and preservation of edits. Run it with
-  `python3 -B -m unittest discover -s scripts/tests -v` from the source root.
+
 
 ## Model ownership and access
 
@@ -310,3 +308,80 @@ Sources: [Open WebUI 0.12.0 release notes](https://github.com/open-webui/open-we
 [versioned compaction implementation](https://github.com/open-webui/open-webui/blob/v0.12.0/backend/open_webui/utils/context_compaction.py),
 [versioned configuration keys](https://github.com/open-webui/open-webui/blob/v0.12.0/backend/open_webui/config.py),
 [llama.cpp server options](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md).
+
+## Terminal file display
+
+The interface default is **Inline** (German: **Eingebettet**), using Open WebUI
+0.12.0's `DEFAULT_INTERFACE_SETTINGS={"terminalFileDisplay":"inline"}`.
+The startup helper migrates the saved `ui.default_interface_settings` once,
+preserving other interface defaults; explicitly reapplying `apply_open_terminal.py`
+also restores this value. Personal interface preferences can override the default.
+Deploy/recreate Open WebUI and reload the browser to receive it. An existing user
+who explicitly selected Sidebar can change Settings > Interface > Terminal File
+Display to Inline, or reset that preference to inherit the administrator default.
+
+## Base-model list cache
+
+`ENABLE_BASE_MODELS_CACHE=true` enables **Cache Base Model List** by default.
+The startup helper also writes the persisted Open WebUI 0.12.0 setting
+`models.base_models_cache` once for existing installations, verifying the value
+before recording `ai_stack.base_models_cache_v1`. Other settings and subsequent
+admin changes are preserved. Recreate Open WebUI to apply the deployment change.
+This caches the provider's model list, not model weights or chat responses.
+
+## Arena models
+
+`ENABLE_EVALUATION_ARENA_MODELS=false` disables Arena model comparisons by default.
+The startup helper also updates the persisted `evaluation.arena.enable` setting
+once for existing installations, with read-back verification before recording
+`ai_stack.arena_disabled_v1`. Saved Arena model definitions are retained; later
+admin changes survive normal restarts. Recreate Open WebUI to apply the change.
+
+## Built-in faster-whisper speech recognition
+
+Open WebUI uses its local Whisper engine (`AUDIO_STT_ENGINE` is an empty string)
+with `WHISPER_MODEL=small`, `WHISPER_COMPUTE_TYPE=int8`, automatic language
+detection (`WHISPER_LANGUAGE` empty), `WHISPER_VAD_FILTER=true` and
+`WHISPER_MODEL_AUTO_UPDATE=true`. Models are stored in
+`/app/backend/data/cache/whisper/models`, within the existing persistent
+Open WebUI data mount. The standard image runs this on the CPU; no separate
+Whisper service or ROCm image is added. Downloads/updates require network access
+unless Open WebUI's offline mode suppresses them.
+
+Recreate Open WebUI after deploying the Compose/environment changes. The startup
+helper applies the persisted engine and local model once, including to existing
+installations, and verifies them before recording `ai_stack.local_whisper_v1`.
+The remaining options are environment settings. Later admin engine/model edits
+are preserved on restart. Select the Default speech-to-text engine in personal
+Audio settings to use the server's local Whisper, then use the chat microphone.
+
+### Topic-dependent search language
+
+The managed model system prompts and automatic query-generation prompt select the
+source language per topic: `:en` for technical documentation and international
+research, `:de` for Austrian/German local topics, with German as the fallback.
+Explicit user language preferences take priority; the answer language is independent.
+No additional classifier request is needed.
+
+The search gateway accepts one leading language marker, for example
+`:en Python asyncio TaskGroup` or `:de Wien Meldezettel`. It removes the marker
+before contacting SearXNG and uses it instead of the incoming `language` parameter.
+Other language codes such as `:fr` and `:de-AT` are supported. Repeated or misplaced
+markers are rejected. Without a marker, explicit language parameters are preserved;
+missing, empty or `all` still means `de`. Cache entries include the effective language.
+
+Recreate/restart **both search-gateway and openwebui** after updating these files.
+On startup, a one-time migration appends the guidance to the four managed presets
+and the saved query-generation prompt, preserving other settings and existing text.
+Later prompt edits are retained. Topic selection depends on model compliance;
+the gateway deterministically applies the selected marker or the German fallback.
+
+### Fetched page content limit
+
+`WEB_FETCH_MAX_CONTENT_LENGTH=50000` limits `fetch_url` output to 50,000 extracted
+characters per page, not tokens. Longer content is truncated rather than summarized.
+Compose defaults to this value even when an existing `.env` omits the variable.
+Recreate Open WebUI to apply the change. The startup helper also updates the
+persisted `web.fetch.max_content_length` once for existing installations, verifies
+it, and records `ai_stack.web_fetch_content_limit_v1`. Later admin edits survive
+normal restarts.

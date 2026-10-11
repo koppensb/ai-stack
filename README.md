@@ -943,12 +943,7 @@ curl -k https://localhost:8443/v1/chat/completions \
 
 # Validation and Tests
 
-The available offline regression suite is `scripts/tests/test_model_preset_access.py`.
-It covers new preset creation, sharing migration, preservation of existing edits,
-retry behavior, and synchronous/asynchronous model stores using test doubles.
-It does not start containers, verify live Open WebUI APIs, or perform inference.
-Older references to a top-level `tests/` SRE, observability, load, or chaos suite
-refer to scripts that are not present in this source tree.
+No automated test suite is included in this source tree.
 
 The repository provisions both the Prometheus datasource and the dashboard in
 `config/grafana/provisioning/dashboards/files/llama-cpp-inference-stack.json`.
@@ -965,10 +960,9 @@ queue pressure. The dashboard uses currently supported llama.cpp metrics.
 No NGINX exporter or Alertmanager is included: rules are evaluated locally, but
 external notifications require an Alertmanager deployment and configuration.
 
-Run offline regression checks from the source tree:
+Validate the Compose configuration from the source tree:
 
 ```bash
-python3 -B -m unittest discover -s scripts/tests -p 'test_*.py'
 # Non-secret placeholders for syntax validation only; do not start services with them.
 WEBUI_SECRET_KEY=validation-only OPEN_TERMINAL_API_KEY=validation-only docker compose --env-file .env.example config --quiet
 ```
@@ -1132,13 +1126,6 @@ remaining provider cooldowns. `/healthz` only checks the gateway process, never
 queries external engines. It does not certify that a provider currently works.
 The Python standard library is sufficient; no extra package or paid API is used.
 
-Run the deterministic scheduler and local HTTP integration tests from the source
-checkout (Python 3.11+; no real search-provider traffic):
-
-```bash
-python3 -m unittest discover -s config/search-gateway -v
-```
-
 Searches use moderate SafeSearch where supported and German (`de`) by default.
 Open WebUI sets `SEARXNG_LANGUAGE=de`; the gateway also maps missing, empty or
 legacy `language=all` requests to `de`. Explicit languages such as `en` or `de-AT`
@@ -1266,7 +1253,7 @@ For a manual upgrade, copy the new preset and updated runtime files, add the two
 `ENABLE_IMAGE_PROMPT_GENERATION=true`, run `scripts/download_models.py`, recreate
 `llama-cpp-small` and `openwebui`, then run the settings command below.
 
-Four additional Open WebUI workspace models are managed by `config/openwebui/apply_model_parameters.py`.
+Four additional Open WebUI workspace models are managed by `config/openwebui/apply_openwebui_parameters.py`.
 At container startup a background helper waits for Open WebUI to be healthy and
 for the first administrator account to exist. It then creates the four presets
 automatically, normally within five seconds of signup. Refresh the browser to see
@@ -1308,7 +1295,7 @@ and the configured Open Terminal by default. Code comments, docstrings, new iden
 are written in English regardless of the input language; conversational explanations
 follow the user's language. Existing interface names and requested localization
 are preserved. The prompt is defined as `CODING_SYSTEM_PROMPT` in
-`config/openwebui/apply_model_parameters.py`. Image Generation receives the English
+`config/openwebui/apply_openwebui_parameters.py`. Image Generation receives the English
 `IMAGE_PROMPT_CREATION_RULES` defined in the same file. It prepares visual
 prompts and uses available image tools to request generation or editing through
 ComfyUI. Its preset enables Image Generation as a default feature and explicitly
@@ -1365,7 +1352,7 @@ To explicitly reapply the managed defaults later, run from the stack directory
 on the GPU host after an admin exists:
 
 ```bash
-sudo docker compose exec -T openwebui python - < /path/to/ai-stack/config/openwebui/apply_model_parameters.py
+sudo docker compose exec -T openwebui python - < /path/to/ai-stack/config/openwebui/apply_openwebui_parameters.py
 sudo docker compose restart openwebui
 ```
 

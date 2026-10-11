@@ -377,6 +377,17 @@ services:
       OPENAI_API_KEYS: "${LLAMA_CPP_API_KEY:?Set LLAMA_CPP_API_KEY in .env (see .env.example)};${LLAMA_CPP_API_KEY:?Set LLAMA_CPP_API_KEY in .env (see .env.example)}"
       DEFAULT_MODELS: "${DEFAULT_MODELS:?Set DEFAULT_MODELS in .env (see .env.example)}"
       TASK_MODEL_EXTERNAL: Small
+      # Built-in faster-whisper; preserve empty engine/language values.
+      AUDIO_STT_ENGINE: "${AUDIO_STT_ENGINE-}"
+      WHISPER_MODEL: ${WHISPER_MODEL:-small}
+      WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8}
+      WHISPER_LANGUAGE: "${WHISPER_LANGUAGE-}"
+      WHISPER_VAD_FILTER: "${WHISPER_VAD_FILTER:-true}"
+      WHISPER_MODEL_AUTO_UPDATE: "${WHISPER_MODEL_AUTO_UPDATE:-true}"
+      WHISPER_MODEL_DIR: /app/backend/data/cache/whisper/models
+      ENABLE_BASE_MODELS_CACHE: ${ENABLE_BASE_MODELS_CACHE:-true}
+      ENABLE_EVALUATION_ARENA_MODELS: ${ENABLE_EVALUATION_ARENA_MODELS:-false}
+      DEFAULT_INTERFACE_SETTINGS: '{"terminalFileDisplay":"inline"}'
       ENABLE_CONTEXT_COMPACTION: ${ENABLE_CONTEXT_COMPACTION:-true}
       CONTEXT_COMPACTION_MODEL: ${CONTEXT_COMPACTION_MODEL:-Big}
       CONTEXT_COMPACTION_TOKEN_THRESHOLD: ${CONTEXT_COMPACTION_TOKEN_THRESHOLD:-65536}
@@ -420,6 +431,7 @@ services:
       WEB_SEARCH_RESULT_COUNT: ${WEB_SEARCH_RESULT_COUNT:?Set WEB_SEARCH_RESULT_COUNT in .env (see .env.example)}
       WEB_SEARCH_CONCURRENT_REQUESTS: ${WEB_SEARCH_CONCURRENT_REQUESTS:?Set WEB_SEARCH_CONCURRENT_REQUESTS in .env (see .env.example)}
       WEB_LOADER_CONCURRENT_REQUESTS: ${WEB_LOADER_CONCURRENT_REQUESTS:?Set WEB_LOADER_CONCURRENT_REQUESTS in .env (see .env.example)}
+      WEB_FETCH_MAX_CONTENT_LENGTH: "${WEB_FETCH_MAX_CONTENT_LENGTH:-50000}"
     volumes:
       - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/openwebui:/etc/openwebui:ro
       - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/data/openwebui:/app/backend/data

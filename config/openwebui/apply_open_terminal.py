@@ -30,7 +30,10 @@ async def connection_settings(config):
             break
     else:
         connections.append(managed)
-    return {"terminal_server.connections": connections}
+    defaults = dict(await config.get("ui.default_interface_settings") or {})
+    defaults["terminalFileDisplay"] = "inline"
+    return {"terminal_server.connections": connections,
+            "ui.default_interface_settings": defaults}
 
 
 async def main():
