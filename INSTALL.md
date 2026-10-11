@@ -120,7 +120,10 @@ bundled workflows on each successful installer startup. Image enable switches,
 sizes and generation steps are respected. The known legacy FLUX model is
 migrated to Qwen. Unrelated saved Open WebUI settings remain unchanged. For web
 search, existing databases may need **Admin Settings → Web Search** set to
-`searxng` with `http://searxng:8080/search?q=<query>&format=json`.
+`searxng` with `http://search-gateway:8080/search?q=<query>&format=json`.
+Replace an existing direct SearXNG or third-party gateway URL. The bundled private
+gateway rotates free engines and applies shared pacing/cache/cooldowns; it needs
+no API keys. The installer creates `data/search-gateway` for UID/GID 65534.
 
 ## Options, updates and retries
 

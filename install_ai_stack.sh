@@ -195,7 +195,8 @@ services:
         ROCM_GFX_TARGETS: ${ROCM_GFX_TARGETS:?Set ROCM_GFX_TARGETS in .env (see .env.example)}
         LLAMA_CPP_REF: ${LLAMA_CPP_REF:?Set LLAMA_CPP_REF in .env (see .env.example)}
 EOF
-install -d -m 0750 data/{grafana,prometheus,openwebui,open-terminal,llama-cpp,comfyui,searxng}
+install -d -m 0750 data/{grafana,prometheus,openwebui,open-terminal,llama-cpp,comfyui,searxng,search-gateway}
+chown 65534:65534 data/search-gateway
 install -d -m 0750 data/comfyui/{input,output,user,models,custom_nodes}
 install -d -m 0750 data/comfyui/models/{checkpoints,vae,loras,unet,text_encoders}
 # Open Terminal runs as user (UID/GID 1000); preserve ownership inside its workspace.
@@ -213,7 +214,7 @@ compose config --quiet
 
 log "Building ROCm images (GPU: $GFX); the initial build may take a long time"
 compose build llama-cpp comfyui
-compose pull nginx openwebui open-terminal searxng llama-metrics-discovery prometheus grafana
+compose pull nginx openwebui open-terminal searxng search-gateway llama-metrics-discovery prometheus grafana
 
 # Prefetch is intentionally before service startup: readiness should not wait on
 # multi-gigabyte model downloads. This step still runs with --no-start.

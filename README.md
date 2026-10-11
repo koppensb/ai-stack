@@ -707,6 +707,7 @@ first start:
 
 ```bash
 sudo mkdir -p data/{grafana,prometheus,openwebui,llama-cpp,searxng}
+sudo install -d -m 0750 -o 65534 -g 65534 data/search-gateway
 sudo mkdir -p data/comfyui/{input,output,user,models,custom_nodes}
 
 # Grafana (UID 472)
@@ -1033,7 +1034,8 @@ and [Open WebUI terminal connections](https://docs.openwebui.com/reference/env-c
 # Web Search with SearXNG
 
 Open WebUI uses the internal endpoint
-`http://searxng:8080/search?q=<query>&format=json`. SearXNG has outbound internet
+`http://search-gateway:8080/search?q=<query>&format=json`. The bundled Python
+gateway schedules requests through SearXNG. SearXNG has outbound internet
 access through `public-net` and shares `backend-net` with Open WebUI. It publishes
 no host port or NGINX route. JSON responses are enabled in
 `config/searxng/settings.yml`; the limiter is disabled for this internal service,
@@ -1045,7 +1047,8 @@ The search profile explicitly retains ten engines from the upstream defaults:
 
 | Search type | Engines | Selection |
 | --- | --- | --- |
-| General web | Brave, DuckDuckGo, Google, Wikipedia | Default |
+| General web | Google, Brave, DuckDuckGo (rotating) | Default |
+| Encyclopedia | Wikipedia | `!wp` or `engines=wikipedia` |
 | News | Brave News, DuckDuckGo News, Google News | `!news` or `categories=news` |
 | IT | GitHub, Stack Overflow | `!it`, `!gh`, or `!st` |
 | Science | arXiv | `!science` or `!arx` |
@@ -1056,7 +1059,8 @@ Open WebUI does not automatically route each question to these categories.
 Other SearXNG engines are excluded by `keep_only`, including image/video,
 shopping and file-search providers. Their sites can still appear in general
 web results. To add a provider, add its exact upstream name to `keep_only`
-and configure it under `engines` if necessary.
+and configure it under `engines` if necessary. Also update the gateway
+`POOLS`/`FAMILIES` allowlist in `config/search-gateway/gateway.py`.
 
 Google is explicitly enabled, overriding its upstream disabled default; Google
 News is limited to the news category. Validate both from the deployment server,
@@ -1068,10 +1072,72 @@ CAPTCHA. These choices follow the
 review them when upgrading. They are a conservative baseline, not a benchmark
 of engine availability from your server's IP address.
 
-Selected engines are queried together, not rotated as fallback providers. Engine
-weights affect result ranking, not request distribution. Provider rotation would
-require a routing layer that selects engines through SearXNG's `engines` search
-parameter; this stack does not currently include such a layer.
+The private gateway selects exactly one engine per upstream request. It rotates
+Google, Brave and DuckDuckGo for general searches; news, IT and science use their
+own pools. It tries at most one additional eligible engine on errors or empty
+results, then returns results, a genuine empty response, or HTTP 503 if providers
+are unavailable. Wikipedia is available explicitly rather than mixed into every
+web search. Engine weights in SearXNG do not control this rotation.
+
+Settings live in `config/search-gateway/settings.toml`:
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `global_gap` + `jitter` | 4 + 0–2 seconds | Minimum pause after an upstream call, shared across all users |
+| `provider_gap` | 20 seconds | Minimum pause for one provider, shared by its web/news engines |
+| `cooldown` | 900 seconds | First CAPTCHA, denied-access or rate-limit pause |
+| `transient_cooldown` | 60 seconds | First timeout/other engine-error pause |
+| `max_cooldown` | 21600 seconds | Maximum exponential engine-error pause (6 hours) |
+| `attempts` | 2 | Maximum different engine attempts for one search |
+| `timeout` / `request_budget` | 12 / 40 seconds | Per-call timeout / scheduling budget including queue wait |
+| `queue_size` | 8 | Maximum admitted searches including the active search |
+| `cache_size` | 128 | Maximum in-memory cached queries |
+| `cache_ttl` / `news_cache_ttl` | 300 / 120 seconds | Successful web/news result lifetime |
+| `empty_cache_ttl` | 30 seconds | Lifetime of a successful empty result |
+
+One upstream request is active at a time. Concurrent identical queries reuse the
+first successful response. The cache distinguishes language, time range, SafeSearch,
+page and engine selection. Cached results are shared across local users, never
+persisted, and cleared on restart. Query text is not written to logs or metrics.
+Only provider timestamps and failure counts persist in `data/search-gateway`;
+cooldowns and spacing survive restarts. Do not delete that state to reset blocks.
+A process lock prevents two schedulers sharing that state. Run one replica only;
+independent replicas cannot share an in-memory queue or provider budget.
+
+When the queue is full the gateway returns HTTP 429; exhausted budgets or blocked
+providers return HTTP 503, with `Retry-After`. Backend-wide failures stop the
+request without trying additional engines and honor backend `Retry-After`.
+Engine errors in SearXNG JSON pause that provider; repeated failures exponentially
+increase its pause. The other provider's first request is still globally paced.
+There is no CAPTCHA solver, proxy rotation, browser impersonation or guarantee
+against blocking. Spacing and cache reduce traffic, not provider restrictions.
+
+Both GET and form-encoded POST `/search` return SearXNG-compatible JSON. Supported
+parameters: `q`, `format=json`, one `categories` value (`general`, `news`, `it`,
+`science`), `engines` (comma-separated allowlisted candidates), `language`,
+`time_range`, `safesearch` and `pageno`. Open WebUI's inert `theme=simple` and
+`image_proxy=0` defaults are accepted. Categories are resolved to candidate engines
+inside the gateway; only the single selected engine is sent to SearXNG to avoid
+its additive engine/category selection. Engine lists are candidates for rotation,
+not parallel fan-out. Pagination above page 1 requires one explicit engine.
+A recognized shortcut such as `!news`, `!gh`, `!wp` or `!google_news` can select a
+pool/engine instead of the selection parameters. Multiple/conflicting shortcuts,
+external redirect bangs, unknown parameters and inline language/timeout controls
+are rejected with HTTP 400. Use the `language` parameter for language selection.
+This keeps query syntax from bypassing the scheduler. Direct SearXNG calls bypass
+all gateway pacing; application integrations should use the gateway URL.
+
+Prometheus scrapes `/metrics` internally, including calls, cache hits, errors and
+remaining provider cooldowns. `/healthz` only checks the gateway process, never
+queries external engines. It does not certify that a provider currently works.
+The Python standard library is sufficient; no extra package or paid API is used.
+
+Run the deterministic scheduler and local HTTP integration tests from the source
+checkout (Python 3.11+; no real search-provider traffic):
+
+```bash
+python3 -m unittest discover -s config/search-gateway -v
+```
 
 Searches use moderate SafeSearch where supported and no fixed language filter,
 so German and English sources remain available. Autocomplete is disabled.
@@ -1081,8 +1147,8 @@ preserved. Engine weights remain equal; no domain is promoted unconditionally.
 For a private instance with a few users, the query-generation prompt requests
 at most one targeted query (or none when retrieval is unnecessary). Open WebUI
 consumes up to five results per search and fetches up to two result pages
-concurrently. Search concurrency is one per search operation; it does not impose
-a global limit across users or a minimum pause between requests. The prompt is
+concurrently. Open WebUI concurrency is one per search operation; the gateway
+adds the global queue and provider pacing across all users. The prompt is
 not a hard request cap: agentic tool calls may perform additional searches.
 These defaults reduce load but do not prevent upstream CAPTCHA or rate limits.
 
@@ -1091,12 +1157,14 @@ When updating an existing deployment, set `WEB_SEARCH_RESULT_COUNT=5`,
 Copy the updated `config/openwebui/start.py` to apply the query-generation prompt.
 Saved Open WebUI admin settings may also need updating. After copying the new
 settings, apply them with `sudo docker compose restart searxng` and
-`sudo docker compose up -d --no-deps --force-recreate openwebui`. Restart SearXNG explicitly:
+`sudo docker compose up -d --force-recreate search-gateway openwebui`. Restart SearXNG explicitly:
 changing a bind-mounted YAML file alone does not recreate its container.
 
 
 For an existing installation, copy the updated `docker-compose.yml` and new
-`config/searxng/settings.yml` into the deployed stack. Add `SEARXNG_SECRET` to
+`config/searxng/settings.yml`, `config/search-gateway/gateway.py`,
+`config/search-gateway/settings.toml` and updated Prometheus configuration into
+the deployed stack. Add `SEARXNG_SECRET` to
 its `.env`, using the output of `openssl rand -hex 32`. The updated installer
 also generates missing secrets. Use `--update-files` to replace managed
 configuration from an updated source tree, with backups.
@@ -1105,13 +1173,15 @@ From the deployment directory:
 
 ```bash
 sudo docker compose config --quiet
-sudo docker compose pull searxng
-sudo docker compose up -d --no-deps searxng openwebui
-sudo docker compose ps searxng
-sudo docker compose exec -T openwebui python -c 'import json, urllib.request; r=json.load(urllib.request.urlopen("http://searxng:8080/search?q=searxng&format=json", timeout=60)); assert isinstance(r.get("results"), list); print("Results:", len(r["results"])); print("Unavailable engines:", r.get("unresponsive_engines", []))'
+sudo install -d -m 0750 -o 65534 -g 65534 data/search-gateway
+sudo docker compose pull searxng search-gateway
+sudo docker compose up -d searxng search-gateway openwebui
+sudo docker compose restart prometheus
+sudo docker compose ps searxng search-gateway
+sudo docker compose exec -T openwebui python -c 'import json, urllib.request; r=json.load(urllib.request.urlopen("http://search-gateway:8080/search?q=searxng&format=json", timeout=60)); assert isinstance(r.get("results"), list); print("Results:", len(r["results"])); print("Unavailable engines:", r.get("unresponsive_engines", []))'
 ```
 
-Wait for SearXNG to become healthy before running the search check. The health
+Wait for SearXNG and search-gateway to become healthy before running the search check. The health
 check uses `/healthz` without sending searches to upstream engines. A JSON response
 with no results may indicate upstream engine blocking; inspect the reported
 unavailable engines and `docker compose logs searxng`.
@@ -1119,7 +1189,10 @@ unavailable engines and `docker compose logs searxng`.
 For installer-managed deployments, add `-f docker-compose.yml -f compose.install.yml`
 to these Compose commands. In existing Open WebUI installations, saved admin
 settings can override environment defaults: enable **Web Search**, select
-**searxng**, and save the query URL above in **Admin Settings → Web Search**.
+**searxng**, and replace any saved direct SearXNG or third-party gateway URL
+with `http://search-gateway:8080/search?q=<query>&format=json` in
+**Admin Settings → Web Search**. The installer does not overwrite custom saved
+search endpoints, so this step matters for existing databases.
 Enable web search in the chat as well.
 
 References: [SearXNG container setup](https://docs.searxng.org/admin/installation-docker)

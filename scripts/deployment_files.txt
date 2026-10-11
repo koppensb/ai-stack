@@ -10,6 +10,8 @@ config/prometheus/prometheus.yml
 config/prometheus/rules.yml
 config/searxng/settings.yml
 config/searxng/limiter.toml
+config/search-gateway/gateway.py
+config/search-gateway/settings.toml
 config/grafana/provisioning/datasources/prometheus.yml
 config/grafana/provisioning/dashboards/dashboards.yml
 config/grafana/provisioning/dashboards/files/llama-cpp-inference-stack.json

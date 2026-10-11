@@ -1,0 +1,16 @@
+# Seconds, except integer attempts/queue_size/cache_size. One gateway replica only.
+# Modest spacing reduces load; it cannot guarantee acceptance by search providers.
+global_gap = 4
+jitter = 2
+provider_gap = 20
+cooldown = 900
+transient_cooldown = 60
+max_cooldown = 21600
+timeout = 12
+request_budget = 40
+attempts = 2
+queue_size = 8
+cache_size = 128
+cache_ttl = 300
+news_cache_ttl = 120
+empty_cache_ttl = 30

@@ -286,6 +286,41 @@ services:
       start_period: 60s
       start_interval: 5s
 
+  # One process serializes all searches and owns persistent provider cooldowns.
+  search-gateway:
+    image: python:3.13-alpine
+    container_name: search-gateway
+    restart: unless-stopped
+    user: "65534:65534"
+    command: ["python", "/etc/search-gateway/gateway.py"]
+    depends_on:
+      searxng:
+        condition: service_healthy
+    networks:
+      - backend-net
+      - monitoring-net
+    expose:
+      - "8080"
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+      SEARXNG_URL: http://searxng:8080
+      GATEWAY_CONFIG: /etc/search-gateway/settings.toml
+      GATEWAY_STATE: /state/providers.json
+    volumes:
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/search-gateway:/etc/search-gateway:ro
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/data/search-gateway:/state
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz', timeout=3).close()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   # One shared persistent workspace for authorized terminal users, not per-user
   # isolation. Access grants are managed separately from model-preset sharing.
   open-terminal:
@@ -316,6 +351,8 @@ services:
     command: ["python", "/etc/openwebui/start.py"]
     restart: unless-stopped
     depends_on:
+      search-gateway:
+        condition: service_healthy
       open-terminal:
         condition: service_healthy
       llama-cpp-small:
@@ -366,7 +403,7 @@ services:
       IMAGE_STEPS: ${IMAGE_STEPS:?Set IMAGE_STEPS in .env (see .env.example)}
       ENABLE_WEB_SEARCH: "true"
       WEB_SEARCH_ENGINE: searxng
-      SEARXNG_QUERY_URL: http://searxng:8080/search?q=<query>&format=json
+      SEARXNG_QUERY_URL: http://search-gateway:8080/search?q=<query>&format=json
       WEB_SEARCH_RESULT_COUNT: ${WEB_SEARCH_RESULT_COUNT:?Set WEB_SEARCH_RESULT_COUNT in .env (see .env.example)}
       WEB_SEARCH_CONCURRENT_REQUESTS: ${WEB_SEARCH_CONCURRENT_REQUESTS:?Set WEB_SEARCH_CONCURRENT_REQUESTS in .env (see .env.example)}
       WEB_LOADER_CONCURRENT_REQUESTS: ${WEB_LOADER_CONCURRENT_REQUESTS:?Set WEB_LOADER_CONCURRENT_REQUESTS in .env (see .env.example)}

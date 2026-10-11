@@ -19,6 +19,7 @@ running deployment's saved settings.
 | Open WebUI database | Saved admin settings, workspace models, users, access grants and initialization markers | Apply the relevant helper or edit through the UI; restart to clear cached settings |
 | `config/nginx/nginx.conf` | TLS listeners and proxy routes | Validate with `nginx -t`, then reload/restart NGINX |
 | `config/searxng/settings.yml` | Search engine allowlist, result formats and upstream timeouts | Restart SearXNG |
+| `config/search-gateway/settings.toml` | Shared provider spacing, cooldowns, cache and request budget | Restart search-gateway |
 | `config/prometheus/*.yml` | Scrapes, discovery mapping and alert rules | Validate with `promtool`, then reload/restart Prometheus |
 | `config/grafana/provisioning/` | Internal datasource and file-managed dashboard | Dashboard files are scanned every 30 seconds; restart for datasource/provider changes |
 | `config/llama-metrics-discovery/llama_metrics_discovery.py` | Main-router metrics discovery and VRAM coordination | Restart the bind-mounted Python process |
