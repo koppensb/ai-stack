@@ -11,8 +11,13 @@ import time
 import urllib.request
 import sys
 
+# Also support the documented stdin invocation inside the container.
+sys.path.insert(0, "/etc/openwebui")
+from apply_context_compaction import COMPACTION_KEY, apply_compaction
+
 # Workspace IDs are stable handles used by saved chats. Base-model parameters
-# stay untouched; missing base records are registered only to attach read grants.
+# are preserved except for the targeted Small context-compaction threshold.
+# Missing base records are registered to attach read grants.
 # All chat roles share one router model; image prompting keeps its own model.
 MODEL_PRESETS = {
     "ai-stack-coding": ("Coding", "Big"),
@@ -509,9 +514,10 @@ async def bootstrap_once(models, users, form_type, config, grants=None):
     image_enabled = await resolve(config.get(IMAGE_GENERATION_KEY))
     terminal_configured = await resolve(config.get(CODING_TERMINAL_KEY))
     chat_migrated = await resolve(config.get(CHAT_MODEL_KEY))
+    compacted = await resolve(config.get(COMPACTION_KEY))
     # Completed migrations do not enforce sharing continuously; later admin
     # changes persist until the helper is explicitly reapplied.
-    if initialized and shared and cached and searched and image_enabled and terminal_configured and chat_migrated:
+    if initialized and shared and cached and searched and image_enabled and terminal_configured and chat_migrated and compacted:
         return True
     owner = await resolve(users.get_first_user())
     if owner is None:
@@ -544,6 +550,8 @@ async def bootstrap_once(models, users, form_type, config, grants=None):
     if not terminal_configured:
         await ensure_coding_terminal(models, form_type)
         await resolve(config.upsert({CODING_TERMINAL_KEY: True}))
+    if not compacted:
+        await apply_compaction(models, form_type, config)
     return True
 
 

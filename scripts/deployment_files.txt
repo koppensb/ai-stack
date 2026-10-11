@@ -16,6 +16,7 @@ config/grafana/provisioning/datasources/prometheus.yml
 config/grafana/provisioning/dashboards/dashboards.yml
 config/grafana/provisioning/dashboards/files/llama-cpp-inference-stack.json
 config/openwebui/start.py
+config/openwebui/apply_context_compaction.py
 config/openwebui/apply_model_parameters.py
 config/openwebui/verify_qwen_workflows.py
 config/openwebui/qwen-image-2.1_image.json

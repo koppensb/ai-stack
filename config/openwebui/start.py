@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from apply_model_parameters import IMAGE_PROMPT_CREATION_RULES
+from apply_context_compaction import COMPACTION_PROMPT
 
 CONFIG = Path(__file__).resolve().parent
 # API-format graphs and mapping files must be edited together. Native ComfyUI
@@ -34,6 +35,9 @@ def load_workflows(directory=CONFIG):
 
 # Open WebUI task requests only; ordinary chat/model presets are unaffected.
 TASK_MODEL_PARAMS = {
+    # Also used for compaction: custom task params disable OWUI's 1000-token
+    # fallback, so bound summary/task output explicitly (not ordinary replies).
+    "max_tokens": 2048,
     "temperature": 0.7,
     "top_p": 0.8,
     "custom_params": {"chat_template_kwargs": {"enable_thinking": False}},
@@ -148,6 +152,7 @@ def main():
     for env_key, _, template in TASK_PROMPTS:
         os.environ[env_key] = template
     os.environ["TASK_MODEL_PARAMS"] = json.dumps(TASK_MODEL_PARAMS)
+    os.environ["CONTEXT_COMPACTION_PROMPT_TEMPLATE"] = COMPACTION_PROMPT
     # Keep the web server as PID 1; the short-lived helper waits for signup.
     subprocess.Popen(
         [sys.executable, str(CONFIG / "apply_model_parameters.py"), "--wait-for-admin"],

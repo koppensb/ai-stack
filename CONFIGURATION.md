@@ -221,3 +221,92 @@ The cache belongs to a resident model process and is lost on unload or restart.
 It does not make answers deterministic or replace source verification. Stable
 system prompts improve prefix reuse; dynamically rewritten context may reduce
 it. See README.md for deployment and live verification steps.
+
+## Context compaction (Open WebUI 0.12.0)
+
+The example pins `OPENWEBUI_VERSION=v0.12.0`. This release compacts between
+native tool rounds as well as before a reply, keeps tool calls with their
+results, and provides separate threshold caps and retention controls. Coding,
+Allround and Image Generation already use native function calling.
+
+| Setting | Default | Reason |
+| --- | --- | --- |
+| `ENABLE_CONTEXT_COMPACTION` | `true` | Summarize older history automatically |
+| `CONTEXT_COMPACTION_MODEL` | `Big` | Long histories need the main model's context; `Small` has only 16,384 tokens |
+| `CONTEXT_COMPACTION_TOKEN_THRESHOLD` | `65536` | 64K trigger for normal chats |
+| `CONTEXT_COMPACTION_TOKEN_CAP` | `81920` | 80K ceiling for per-model overrides |
+| `CONTEXT_COMPACTION_RETENTION_PERCENTAGE` | `40` | Retain recent messages verbatim, aligned to conversation/tool rounds |
+| `OPENWEBUI_SMALL_COMPACTION_THRESHOLD` | `8192` | Earlier trigger for the `Small` base model and Image Generation preset |
+
+The small-model threshold is a stack setting written to Open WebUI's model
+parameter `compact_token_threshold`. The cap bounds thresholds, not total prompt
+size. Retention is a percentage of **messages**, not tokens. The summary prompt
+preserves user constraints, decisions, exact identifiers, tool results and open
+work, and distinguishes source-document instructions from the user's request.
+Summary output is capped at 2,048 tokens through `TASK_MODEL_PARAMS.max_tokens`;
+Open WebUI 0.12.0 shares these parameters with other background tasks, so their
+outputs receive the same cap. Normal chat output limits remain unchanged.
+
+The main llama.cpp router keeps `LLAMA_CPP_PARALLEL=4` and a total context pool
+of `196608` tokens (192K). Explicit `--kv-unified` lets the usual one or two
+active requests share that pool instead of reserving four fixed 49,152-token
+partitions. Two 64K chats leave approximately 64K for growth, generation and
+summary requests; two chats at the 80K override ceiling leave only 32K. These
+are planning margins, not admission guarantees. Compaction itself uses a slot
+and can overlap other work. Existing cached prefixes, long responses and large
+tool outputs also consume capacity. Four short/medium chats remain possible;
+four simultaneous 64K histories do not fit in 192K. For sustained four-way long
+chats, lower both threshold and cap to `32768` before the load, or limit active
+long chats. Merely having idle slots does not increase GPU memory consumption
+by allocating another full 192K pool per slot.
+
+Compaction is not a hard overflow guard: a huge new message or tool result can
+overshoot the threshold; very short histories may not have a valid split point.
+When changing context sizes or models, review both the summary model's capacity
+and every chat model's threshold. Check real latency, context usage and memory
+under the intended load before increasing limits.
+
+Tool Search is available as an optional 0.12.0 feature: `ENABLE_TOOL_SEARCH=false`
+keeps the experimental feature off initially. For large external/MCP tool sets,
+set it to `true`; `TOOL_SEARCH_DEFER_THRESHOLD=1024` defers definitions over 1,024
+**characters**, and `TOOL_SEARCH_DEFER_BUILTIN_TOOLS=false` keeps the built-in
+terminal, search and image tools immediately available. It requires native
+function calling and can introduce an extra tool lookup.
+
+### Applying to existing installations
+
+Deploy the changed Compose file and `config/openwebui/` helpers together. The
+installer's deployment manifest includes the new helper. Existing `.env` values
+are preserved by the installer: explicitly change `OPENWEBUI_VERSION` to
+`v0.12.0` if it is pinned to an older version or still uses `main`. Add the new
+settings from `.env.example` as needed; Compose includes defaults for them.
+Recreate both `llama-cpp` and `openwebui` to apply command/environment changes:
+
+```bash
+docker compose pull openwebui
+docker compose up -d --force-recreate llama-cpp openwebui
+docker compose logs openwebui | tail -n 80
+```
+
+After the first administrator exists, startup applies the targeted migration
+and records `ai_stack.context_compaction.v1` only after read-back verification.
+This updates persisted settings even on an existing database, while retaining
+model prompts, unrelated parameters and access grants. Later admin changes
+survive normal restarts. To deliberately reapply changed environment settings,
+recreate Open WebUI and then run:
+
+```bash
+docker compose exec -T openwebui python /etc/openwebui/apply_context_compaction.py
+docker compose restart openwebui
+```
+
+Check Admin Settings > Interface for the compaction settings, the Small/Image
+Generation advanced parameters for the 8K threshold, and the llama.cpp logs
+for unified KV configuration. Refresh the model list after the initial migration.
+A live check should include a long chat, a native tool loop and two concurrent
+chats. This repository's local checks do not replace that GPU-backed validation.
+
+Sources: [Open WebUI 0.12.0 release notes](https://github.com/open-webui/open-webui/releases/tag/v0.12.0),
+[versioned compaction implementation](https://github.com/open-webui/open-webui/blob/v0.12.0/backend/open_webui/utils/context_compaction.py),
+[versioned configuration keys](https://github.com/open-webui/open-webui/blob/v0.12.0/backend/open_webui/config.py),
+[llama.cpp server options](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md).

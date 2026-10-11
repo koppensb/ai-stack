@@ -118,6 +118,9 @@ services:
       - q8_0
       - --flash-attn
       - "on"
+      # Share the context pool so the usual 1-2 requests can use idle capacity.
+      # Four slots allow bursts; four long prompts can exhaust the shared pool.
+      - --kv-unified
       # Concurrent chat requests per loaded model, across all users.
       - --parallel
       - ${LLAMA_CPP_PARALLEL:?Set LLAMA_CPP_PARALLEL in .env (see .env.example)}
@@ -374,6 +377,15 @@ services:
       OPENAI_API_KEYS: "${LLAMA_CPP_API_KEY:?Set LLAMA_CPP_API_KEY in .env (see .env.example)};${LLAMA_CPP_API_KEY:?Set LLAMA_CPP_API_KEY in .env (see .env.example)}"
       DEFAULT_MODELS: "${DEFAULT_MODELS:?Set DEFAULT_MODELS in .env (see .env.example)}"
       TASK_MODEL_EXTERNAL: Small
+      ENABLE_CONTEXT_COMPACTION: ${ENABLE_CONTEXT_COMPACTION:-true}
+      CONTEXT_COMPACTION_MODEL: ${CONTEXT_COMPACTION_MODEL:-Big}
+      CONTEXT_COMPACTION_TOKEN_THRESHOLD: ${CONTEXT_COMPACTION_TOKEN_THRESHOLD:-65536}
+      CONTEXT_COMPACTION_TOKEN_CAP: ${CONTEXT_COMPACTION_TOKEN_CAP:-81920}
+      CONTEXT_COMPACTION_RETENTION_PERCENTAGE: ${CONTEXT_COMPACTION_RETENTION_PERCENTAGE:-40}
+      OPENWEBUI_SMALL_COMPACTION_THRESHOLD: ${OPENWEBUI_SMALL_COMPACTION_THRESHOLD:-8192}
+      ENABLE_TOOL_SEARCH: ${ENABLE_TOOL_SEARCH:-false}
+      TOOL_SEARCH_DEFER_THRESHOLD: ${TOOL_SEARCH_DEFER_THRESHOLD:-1024}
+      TOOL_SEARCH_DEFER_BUILTIN_TOOLS: ${TOOL_SEARCH_DEFER_BUILTIN_TOOLS:-false}
       WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:?Set WEBUI_SECRET_KEY in .env (see .env.example)}
       WEBUI_AUTH: "true"
       WEBUI_URL: https://${PUBLIC_IP_OR_DOMAIN:?Set PUBLIC_IP_OR_DOMAIN in .env (see .env.example)}:8443
