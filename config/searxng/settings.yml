@@ -27,8 +27,8 @@ server:
 search:
   # 0=off, 1=moderate, 2=strict; actual filtering depends on the selected engine.
   safe_search: 1
-  # Keep German and English sources available; queries can specify a language.
-  default_lang: "all"
+  # Default to German; callers can explicitly select another language.
+  default_lang: "de"
   # API clients do not need autocomplete or third-party favicon requests.
   autocomplete: ""
   favicon_resolver: ""
@@ -40,7 +40,10 @@ outgoing:
   # Allow slower providers to answer, without waiting indefinitely.
   request_timeout: 5.0
   max_request_timeout: 10.0
-  # Keep upstream HTTP and error-suspension settings.
+  # Avoid additional HTTP attempts after upstream errors.
+  retries: 0
+  enable_http2: true
+  # Keep upstream error-suspension settings.
 
 engines:
   # Normal queries use these four sources; retain equal default ranking weights.

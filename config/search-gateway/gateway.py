@@ -129,7 +129,11 @@ def normalize(params):
             choices = (route,)
     if explicit and p.get('categories') and any(e not in POOLS[category] for e in choices):
         raise Failure(400, 'Engine does not belong to selected category')
-    language = p.get('language', 'all')
+    # Existing Open WebUI settings may still explicitly send "all". Use the
+    # stack's German default for unspecified/all, preserving explicit languages.
+    language = p.get('language', '').strip()
+    if language in ('', 'all'):
+        language = 'de'
     if not re.fullmatch(r'(?:all|auto|[a-z]{2,3}(?:-[A-Za-z]{2,4})?)', language):
         raise Failure(400, 'Invalid language')
     if p.get('time_range', '') not in ('', 'day', 'week', 'month', 'year'):

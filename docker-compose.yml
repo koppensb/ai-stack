@@ -404,6 +404,7 @@ services:
       ENABLE_WEB_SEARCH: "true"
       WEB_SEARCH_ENGINE: searxng
       SEARXNG_QUERY_URL: http://search-gateway:8080/search?q=<query>&format=json
+      SEARXNG_LANGUAGE: de
       WEB_SEARCH_RESULT_COUNT: ${WEB_SEARCH_RESULT_COUNT:?Set WEB_SEARCH_RESULT_COUNT in .env (see .env.example)}
       WEB_SEARCH_CONCURRENT_REQUESTS: ${WEB_SEARCH_CONCURRENT_REQUESTS:?Set WEB_SEARCH_CONCURRENT_REQUESTS in .env (see .env.example)}
       WEB_LOADER_CONCURRENT_REQUESTS: ${WEB_LOADER_CONCURRENT_REQUESTS:?Set WEB_LOADER_CONCURRENT_REQUESTS in .env (see .env.example)}

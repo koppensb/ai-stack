@@ -1139,8 +1139,14 @@ checkout (Python 3.11+; no real search-provider traffic):
 python3 -m unittest discover -s config/search-gateway -v
 ```
 
-Searches use moderate SafeSearch where supported and no fixed language filter,
-so German and English sources remain available. Autocomplete is disabled.
+Searches use moderate SafeSearch where supported and German (`de`) by default.
+Open WebUI sets `SEARXNG_LANGUAGE=de`; the gateway also maps missing, empty or
+legacy `language=all` requests to `de`. Explicit languages such as `en` or `de-AT`
+remain unchanged, as does `auto`. Cache keys use the effective language.
+Autocomplete is disabled. SearXNG HTTP retries are explicitly disabled
+(`outgoing.retries: 0`), with HTTP/2 enabled. This does not disable the gateway's
+one fallback attempt to a different provider. Language changes and avoiding
+retries do not guarantee that CAPTCHA or access-denied responses disappear.
 The default engine timeout is 5 seconds, arXiv gets 8 seconds, and the maximum
 request timeout is 10 seconds. Upstream error/CAPTCHA suspension behavior is
 preserved. Engine weights remain equal; no domain is promoted unconditionally.

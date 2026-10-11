@@ -73,7 +73,7 @@ class Scheduling(unittest.TestCase):
     def test_cache_filters_expiry_and_news_ttl(self):
         self.g.search(params())
         self.assertTrue(self.g.search(params())['gateway']['cache'])
-        self.g.search(params(language='de'))
+        self.g.search(params(language='en'))
         self.assertEqual(len(self.calls), 2)
         self.clock.sleep(301)
         self.g.search(params())
@@ -203,8 +203,20 @@ class InputValidation(unittest.TestCase):
             pageno='1', safesearch='1', language='all', time_range='', categories='',
             theme='simple', image_proxy='0'))
         self.assertTrue(news)
+        self.assertEqual(p['language'], 'de')
         self.assertEqual(p['q'], 'headlines')
         self.assertEqual(len(choices), 3)
+
+    def test_german_default_and_explicit_languages(self):
+        default_key = normalize(params())[2]
+        for values in ({}, {'language': ''}, {'language': 'all'}, {'language': 'de'}):
+            p, _, key, _ = normalize(params(**values))
+            self.assertEqual(p['language'], 'de')
+            self.assertEqual(key, default_key)
+        for language in ('en', 'de-AT', 'auto'):
+            p, _, key, _ = normalize(params(language=language))
+            self.assertEqual(p['language'], language)
+            self.assertNotEqual(key, default_key)
 
 
 class HTTPIntegration(unittest.TestCase):
@@ -238,11 +250,12 @@ class HTTPIntegration(unittest.TestCase):
             self.addCleanup(srv.server_close)
             self.addCleanup(srv.shutdown)
             base = f'http://127.0.0.1:{srv.server_port}'
-            body = urlencode({'q': 'headlines', 'categories': 'news', 'language': 'de', 'time_range': 'day'}).encode()
+            body = urlencode({'q': 'headlines', 'categories': 'news', 'language': 'all', 'time_range': 'day'}).encode()
             with urlopen(Request(base+'/search', data=body)) as r:
                 response = json.load(r)
             self.assertEqual(response['gateway']['selected_engine'], 'google news')
             self.assertEqual(calls[0]['engines'], ['google news'])
+            self.assertEqual(calls[0]['language'], ['de'])
             self.assertNotIn('categories', calls[0])
             with urlopen(base+'/search?'+body.decode()) as r:
                 self.assertTrue(json.load(r)['gateway']['cache'])
