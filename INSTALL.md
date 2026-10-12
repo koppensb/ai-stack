@@ -1,9 +1,9 @@
 # Install the AI stack on Ubuntu
 
-Requirements: Ubuntu amd64 with systemd, an installed AMD driver/ROCm, working
-`rocminfo`, and GPU access through `/dev/kfd` and `/dev/dri`. Internet access and
-sufficient disk space for ROCm images, all model weights and temporary downloads
-are required. The installer does not reinstall the host AMD driver or ROCm.
+Requirements: Ubuntu amd64 with systemd and an AMD GPU visible to the host/VM.
+A working AMD driver and `rocminfo` can be prepared manually or bootstrapped with
+`--install-gpu-driver` on the supported systems described below. Internet access
+and sufficient disk space for ROCm images, model weights and downloads are required.
 
 Copy the complete source directory to the GPU host, then run:
 
@@ -20,12 +20,14 @@ For file responsibilities, configuration precedence, and workflow formats, see
 
 ## What the installer does
 
-1. Checks Ubuntu, GPU access and source completeness.
+1. Checks Ubuntu and source completeness, optionally installs missing GPU packages,
+   and verifies host GPU access (pausing for a reboot when needed).
 2. Installs base packages, Docker Engine, Compose, Buildx and AMD Container Toolkit.
 3. Configures the AMD runtime, restarting Docker if required.
 4. Copies only manifest-listed build/runtime files and prepares persistent directories and permissions.
 5. Generates missing credentials, a SearXNG secret, an Open Terminal API key and a self-signed TLS certificate.
-6. Builds llama.cpp and ComfyUI and pulls the other service images.
+6. Builds llama.cpp and ComfyUI, pulls other images, then checks llama.cpp GPU
+   visibility and performs a small computation in the ComfyUI ROCm container.
 7. Downloads every chat preset from `config/llama-cpp/models.ini`, including MTP
    heads and automatically selected vision projectors, into `data/llama-cpp`.
 8. Downloads the shared Qwen-Image-2.1 Q4_K_M model, Qwen3-VL BF16 text/vision
@@ -53,6 +55,125 @@ The package setup follows [Docker's Ubuntu instructions](https://docs.docker.com
 and [AMD's runtime guide](https://instinct.docs.amd.com/projects/container-toolkit/en/latest/container-runtime/quick-start-guide.html).
 Unavailable packages or images stop installation; another Ubuntu release is not
 silently substituted.
+
+## Optional host GPU driver installation
+
+```bash
+sudo bash /path/to/ai-stack/install_ai_stack.sh --host 192.168.1.50 --install-gpu-driver
+```
+
+Without this flag, an interactive run offers installation when GPU setup is
+missing. The default answer is no. `--non-interactive` requires the flag for a
+new setup; it never silently approves a driver change. Working installations
+are reused only when the installed package can be verified against the selected
+release, including when the flag is present. A loaded driver with only
+`rocminfo` missing receives the diagnostic package without driver replacement.
+
+Automatic bootstrap currently covers this deliberate subset of the
+[ROCm 10.1 compatibility matrix](https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html):
+
+| Component | Automatic installation |
+| --- | --- |
+| Host OS | Ubuntu 26.04 (`resolute`), amd64 |
+| Running kernel | Ubuntu GA `7.0.x-<ABI>-generic` |
+| Driver repository | Selected AMD release (default `31.50`); exact `amdgpu-dkms` package from that repository |
+| Navi 48 / gfx1201 | PCI IDs `1002:7550`, `1002:7551` (RX 9070 family / AI PRO R9700) |
+| Navi 44 / gfx1200 | PCI ID `1002:7590` |
+| Navi 31 / gfx1100 | PCI IDs `1002:7448`, `7449`, `744a`, `744b`, `744c`, `745e` |
+| Navi 32 / gfx1101 | PCI IDs `1002:7460`, `7461`, `7470`, `747e` |
+| Navi 33 / gfx1102 | PCI IDs `1002:7480`, `7489` |
+
+PCI IDs identify GPU families and can cover several board variants; the later
+runtime checks still have to pass. Other GPUs, APUs, Ubuntu releases and custom
+kernels require manual preparation. An unsupported additional AMD display device
+also blocks automatic installation. The normal installer still accepts existing
+working installations. No kernel upgrade, PCI rebinding or Proxmox configuration
+is performed. With passthrough, run the installer **inside the Ubuntu VM**, not
+on the Proxmox host or inside a container.
+
+The helper follows AMD's [31.50 Ubuntu package-manager instructions](https://instinct.docs.amd.com/projects/amdgpu-docs/en/docs-31.50.0/install/detailed-install/package-manager/package-manager-ubuntu.html).
+It uses a dedicated APT signing keyring and `signed-by`, installs matching kernel
+headers, DKMS and the driver, and takes the small `rocminfo` package and its HSA
+runtime dependencies from the configured Ubuntu repositories (`universe` must
+be enabled). It does not install the complete host ROCm SDK, desktop graphics or
+OpenCL stack. Application ROCm libraries remain in the containers. Missing
+packages stop the run; repositories for another Ubuntu version are never used.
+Existing separate AMD driver repository definitions must be resolved manually.
+
+### Selecting the driver release
+
+The central default is `GPU_DRIVER_SERIES=31.50` at the top of
+`scripts/install_gpu_driver.sh`. Changing it to `31.60` changes repository setup,
+package selection, validation and messages together. Alternatively, override it
+for a run without modifying the source:
+
+```bash
+sudo bash /path/to/ai-stack/install_ai_stack.sh --host 192.168.1.50 \
+  --install-gpu-driver --gpu-driver-series 31.60
+```
+
+`--gpu-driver-series` selects the release; `--install-gpu-driver` authorizes
+installation of missing packages. Supply the same selection again after reboot.
+The helper ignores an environment variable of the same name; it uses the central
+source default or the explicit command-line option, not the deployment `.env`.
+AMD 31.50 and 31.60 are listed for the current ROCm 10.1 Radeon matrix. Before
+selecting another release, verify its GPU, Ubuntu, kernel and container ROCm
+compatibility. This option does not expand the hardware/OS allowlist.
+
+The installer only selects packages from the exact release URI and Ubuntu suite;
+there is no fallback to another release or APT's global candidate. On initial
+installation it takes the first (highest-version) matching APT entry. It records
+both the series and exact package version under `/var/lib/ai-stack/gpu-driver`.
+An interrupted installation retries that exact package; if unavailable, it stops.
+This is a release selector, not an exact patch-version lock for ordinary APT updates.
+
+Existing drivers must match the selected release. Matching recorded series/package
+metadata or matching cached repository metadata establishes this. An unknown,
+inbox, mismatched or unverified driver causes an error instead of silent reuse.
+For a manually prepared matching driver, configure the selected official signed
+repository and refresh its APT metadata so the installed package can be verified.
+
+**Changing the selection does not upgrade or downgrade an existing driver.** For
+an intentional migration, stop GPU workloads, follow AMD's uninstall/install and
+Secure Boot/reboot instructions, and verify the new driver. After completing any
+pending installer operation, archive the old `/var/lib/ai-stack/gpu-driver` state
+and remove/replace the old installer-managed APT source
+`/etc/apt/sources.list.d/ai-stack-amdgpu.list` as part of that maintenance. Rerun
+with the new selection and matching signed repository metadata. Do not clear
+state to bypass a failed DKMS installation or pending reboot. An ordinary
+`--update-files` run never performs driver migration.
+
+### Secure Boot and restart
+
+Secure Boot is detected with `mokutil`. Ubuntu creates the DKMS signing key; an
+interactive run asks for a temporary MOK enrollment password. This password is
+not saved by the installer. During the reboot, open the Proxmox VM console and
+enroll the key using that password. Secure Boot is never disabled automatically.
+
+For unattended installation, a key that has not yet been enrolled produces exit
+status **21**, with the exact `mokutil --import` command to run manually. Import
+the key, reboot, complete enrollment and rerun the installer. A later driver
+installation may require another reboot.
+
+After successful DKMS installation the installer returns **20** (reboot required).
+It does not reboot automatically or continue to stack builds/downloads/startup.
+Reboot when convenient and rerun the **same command with the same options**.
+Progress in `/var/lib/ai-stack/gpu-driver` records the driver series, exact package, phase and boot ID,
+not credentials or command arguments. A second run before reboot returns 20
+again. After reboot, the installer checks the loaded module and `rocminfo` before
+continuing. If verification fails, it retains the marker and reports the problem.
+
+A failed package installation is retried only if this installer created the
+installation marker. An existing broken or incompatible driver is not blindly
+reinstalled. Driver upgrades/removal remain explicit manual maintenance using
+AMD's instructions; `--update-files` and `--install-gpu-driver` do not request a
+driver upgrade. The release repository follows the selected series, but installed packages are not
+held against normal administrator-managed APT updates.
+
+After building, temporary containers verify GPU access in both application
+runtimes, including a small PyTorch matrix multiplication. These checks run with
+`--no-start` too, before model downloads. They detect runtime failures but do not
+replace a full chat/image inference test on the target hardware.
 
 ## Deployment contents
 
@@ -127,6 +248,10 @@ no API keys. The installer creates `data/search-gateway` for UID/GID 65534.
 
 ## Options, updates and retries
 
+- `--gpu-driver-series 31.60`: override the central driver release selection for
+  this run. Existing mismatched drivers stop installation; migration is manual.
+- `--install-gpu-driver`: install missing GPU packages within the supported
+  bootstrap scope above. May exit 20/21 and require a reboot/manual MOK enrollment.
 - `--update-files`: back up and replace application/configuration files from the
   source. Review local customizations first, especially `models.ini`. Backups
   reside in `.installer-backups/<timestamp>-<pid>/`. Credentials, TLS files and
@@ -140,7 +265,7 @@ no API keys. The installer creates `data/search-gateway` for UID/GID 65534.
   `llama download` command, MTP downloading and the configured model architectures.
 - `--no-start`: configure, build, pull and download, without starting the service
   stack or enabling new autostart. Temporary downloader containers still run.
-  This is not a dry run. Existing running services are not stopped; changed files
+  GPU test containers also run. This is not a dry run. Existing running services are not stopped; changed files
   and secrets may affect them. Container recreation is deferred to a later run.
 - `--wait 3600`: change the service-readiness timeout (default 1800 seconds).
 
@@ -214,7 +339,7 @@ The included offline regression suite covers preset sharing and migration with
 test doubles. Compose validation checks resolved service configuration; neither
 proves live API compatibility or inference correctness. The installer performs live
 readiness, GPU visibility, workflow-schema and Prometheus checks on the host.
-These checks do not perform inference. Validate one chat completion, one image
+The GPU bootstrap adds a small compute test; these checks do not perform model inference. Validate one chat completion, one image
 generation and one reference-image edit on the actual GPU after installation.
 Floating image tags and source branches can change. ComfyUI deliberately follows
 the latest stable release on each Compose build; record build output for diagnosis.

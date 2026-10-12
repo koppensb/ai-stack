@@ -260,63 +260,42 @@ ssh-copy-id user@vm-ip
 
 # Install AMD Drivers and ROCm
 
-## Download the Installer
+The automated installer can prepare the host GPU driver on Ubuntu 26.04 with
+the GA 7.0 generic kernel and supported Radeon PCI IDs. Run it inside the Ubuntu
+VM after configuring GPU passthrough:
 
 ```bash
-wget https://repo.radeon.com/amdgpu-install/31.50/ubuntu/resolute/amdgpu-install_31.50.315000-1_all.deb
+sudo bash /path/to/ai-stack/install_ai_stack.sh --host 192.168.1.50 --install-gpu-driver
 ```
 
-## Install the Package
+It installs the selected AMD driver release (default 31.50) from the signed AMD repository, matching kernel
+headers/DKMS and the host `rocminfo` diagnostic package. Application ROCm libraries
+remain in the Docker images. Select another release with `--gpu-driver-series 31.60`
+or change `GPU_DRIVER_SERIES` in `scripts/install_gpu_driver.sh`. A working driver
+is reused only if its package can be verified against the selected release.
+A mismatch stops installation; it does not trigger an automatic upgrade or downgrade.
+See [driver release selection](INSTALL.md#selecting-the-driver-release) for migration.
+Without the flag, an
+interactive installer asks before installing missing GPU packages.
 
-```bash
-sudo dpkg -i amdgpu-install_31.50.315000-1_all.deb
-sudo apt update
-```
+After driver installation, exit status **20** means: reboot and rerun the same
+command. With Secure Boot, enroll the MOK in the Proxmox VM console during boot.
+Unattended runs with an unenrolled key return **21** and explain the required
+manual enrollment. The installer never initiates a reboot itself.
 
-## Install AMD Drivers
-
-```bash
-sudo amdgpu-install --usecase=graphics,opencl,rocm
-```
+For the exact GPU allowlist, prerequisites, restart behavior and limitations, see
+[optional host GPU installation](INSTALL.md#optional-host-gpu-driver-installation).
+Other host configurations require manual preparation following AMD's
+[driver installation guide](https://instinct.docs.amd.com/projects/amdgpu-docs/en/docs-31.50.0/install/detailed-install/package-manager/package-manager-ubuntu.html)
+and [compatibility matrix](https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html).
+For manual non-root host GPU access, add the intended user to `render` and `video`
+and log in again. The installer itself runs as root.
 
 ---
 
-## Configure UEFI Secure Boot
+# Automated Installation on an Ubuntu VM
 
-If Secure Boot is enabled, a Machine Owner Key (MOK) must be enrolled during
-installation. If the kernel module is not signed or the MOK is not enrolled,
-the AMD driver will not load.
-
-1. Set a UEFI password when prompted.
-2. Reboot the VM.
-3. Open the VM console from Proxmox.
-4. Enroll the MOK during startup.
-
----
-
-## Add User to Required Groups
-
-```bash
-sudo usermod -aG render,video $USER
-```
-
-Log out and back in afterward.
-
----
-
-## Verify ROCm Installation
-
-```bash
-rocminfo
-```
-
-If the GPU is detected, ROCm has been installed successfully.
-
----
-
-# Automated Installation on a Prepared Ubuntu VM
-
-If the AMD driver and ROCm are already installed and `rocminfo` detects the GPU,
+If the AMD driver is already installed and `rocminfo` detects the GPU,
 use [install_ai_stack.sh](install_ai_stack.sh) to install the remaining packages
 and deploy the stack:
 

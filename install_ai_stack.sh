@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install the AI stack on Ubuntu amd64 with a working AMD driver/ROCm.
+# Install the AI stack on Ubuntu amd64; optionally bootstrap the AMD GPU driver.
 set -Eeuo pipefail
 umask 022
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
@@ -15,6 +15,8 @@ WAIT_SECONDS=1800
 START=1
 NON_INTERACTIVE=0
 UPDATE_FILES=0
+INSTALL_GPU_DRIVER=0
+GPU_DRIVER_SERIES_OVERRIDE=
 usage() {
   cat <<'EOF'
 sudo bash install_ai_stack.sh --host ai.example.local [options]
@@ -26,12 +28,18 @@ sudo bash install_ai_stack.sh --host ai.example.local [options]
   --wait SECONDS      Service readiness timeout (default: 1800)
   --no-start          Configure, build and download models without starting the stack
   --update-files      Back up and replace managed application/configuration files
+  --install-gpu-driver Install missing GPU driver/rocminfo on supported systems
+                     Never replaces a working driver or reboots automatically
+  --gpu-driver-series SERIES  Select AMD release (default: GPU_DRIVER_SERIES in helper)
+                     Existing drivers must match; no automatic upgrade/downgrade
   --non-interactive   Use saved values/defaults without prompting
   --help              Show help
 
-Target: /opt/ai-stack. Requires Ubuntu amd64, systemd, AMD driver/ROCm,
+Target: /opt/ai-stack. Requires Ubuntu amd64, systemd, working AMD GPU access,
 internet access and sufficient disk space for large ROCm images and models.
 Docker and AMD Container Toolkit are installed if needed.
+GPU bootstrap: Ubuntu 26.04, GA 7.0 generic kernel, allowlisted Radeon GPUs.
+Exit 20: reboot and rerun. Exit 21: enroll the Secure Boot MOK and rerun.
 Existing differing managed files require --update-files. Backups are retained.
 Credentials, TLS files, .env and data are always preserved during file updates.
 Only manifest-listed build/runtime files are copied; keep the source tree for reruns.
@@ -41,14 +49,16 @@ EOF
 while (($#)); do
   case "$1" in
     --help|-h) usage; exit 0 ;;
+    --install-gpu-driver) INSTALL_GPU_DRIVER=1; shift ;;
     --no-start) START=0; shift ;;
     --update-files) UPDATE_FILES=1; shift ;;
     --non-interactive) NON_INTERACTIVE=1; shift ;;
-    --source|--host|--gfx|--llama-ref|--wait)
+    --source|--host|--gfx|--llama-ref|--wait|--gpu-driver-series)
       (($# >= 2)) && [[ -n "$2" ]] || die "Missing value for $1."
       case "$1" in
         --source) SOURCE=$2 ;; --host) HOST_NAME=$2 ;; --gfx) GFX=$2 ;;
         --llama-ref) LLAMA_REF=$2 ;; --wait) WAIT_SECONDS=$2 ;;
+        --gpu-driver-series) GPU_DRIVER_SERIES_OVERRIDE=$2 ;;
       esac
       shift 2 ;;
     *) die "Unknown option: $1" ;;
@@ -65,7 +75,6 @@ done
 CODENAME=${UBUNTU_CODENAME:-${VERSION_CODENAME:-}}
 [[ "$CODENAME" =~ ^[a-z]+$ ]] || die 'Missing Ubuntu codename.'
 [[ -d /run/systemd/system ]] || die 'A running systemd instance is required.'
-[[ -c /dev/kfd && -d /dev/dri ]] || die 'AMD GPU devices are missing. Check the driver/passthrough setup and whether a reboot is needed.'
 SOURCE=$(cd -- "$SOURCE" && pwd -P)
 [[ "$SOURCE" != "$TARGET" ]] || die 'Keep the complete source tree outside /opt/ai-stack and run the installer from there.'
 MANIFEST="$SOURCE/scripts/deployment_files.txt"
@@ -73,7 +82,7 @@ MANIFEST="$SOURCE/scripts/deployment_files.txt"
 while IFS= read -r file; do
   [[ -f "$SOURCE/$file" ]] || die "Missing deployment file: $file"
 done < "$MANIFEST"
-for f in config/openwebui/apply_open_terminal.py scripts/download_models.py scripts/check_managed_files.py scripts/configure_install.py scripts/security_settings.py scripts/lock_images.py scripts/check_amd_runtime.py scripts/verify_comfyui_gpu.py config/openwebui/apply_qwen_images.py config/openwebui/apply_openwebui_parameters.py config/openwebui/verify_qwen_workflows.py ai-stack.service .env.example; do
+for f in scripts/install_gpu_driver.sh scripts/verify_gpu_compute.py config/openwebui/apply_open_terminal.py scripts/download_models.py scripts/check_managed_files.py scripts/configure_install.py scripts/security_settings.py scripts/lock_images.py scripts/check_amd_runtime.py scripts/verify_comfyui_gpu.py config/openwebui/apply_qwen_images.py config/openwebui/apply_openwebui_parameters.py config/openwebui/verify_qwen_workflows.py ai-stack.service .env.example; do
   [[ -f "$SOURCE/$f" ]] || die "Missing source file: $SOURCE/$f (see --source)."
 done
 if [[ "$SOURCE" != "$TARGET" && -d "$TARGET" ]] && (( ! UPDATE_FILES )); then
@@ -83,16 +92,9 @@ fi
 # concurrent runs cannot interleave credential writes or deployment backups.
 exec 9>/run/lock/ai-stack-install.lock
 flock -n 9 || die 'Another installation is already running.'
-ROCMINFO=$(command -v rocminfo || true)
-if [[ -z "$ROCMINFO" ]]; then
-  for f in /opt/rocm/bin/rocminfo /opt/rocm-*/bin/rocminfo /opt/rocm/core-*/bin/rocminfo; do
-    if [[ -x "$f" ]]; then ROCMINFO=$f; break; fi
-  done
-fi
-[[ -n "$ROCMINFO" ]] || die 'rocminfo was not found in PATH or under /opt/rocm.'
-GPU_INFO=$("$ROCMINFO") || die 'rocminfo failed.'
-DETECTED=$(printf '%s\n' "$GPU_INFO" | awk '$1 == "Name:" && $2 ~ /^gfx[0-9a-f]+$/ && $2 != "gfx000" {print $2}' | sort -u)
-[[ -n "$DETECTED" ]] || die 'rocminfo did not detect a GPU target.'
+# The helper is trusted installer source; state files and .env are never sourced.
+. "$SOURCE/scripts/install_gpu_driver.sh"
+gpu_prepare
 if [[ -z "$GFX" ]]; then
   [[ "$DETECTED" != *$'\n'* ]] || die 'Multiple GPU types detected: please specify --gfx.'
   GFX=$DETECTED
@@ -222,6 +224,16 @@ compose build llama-cpp comfyui
 compose pull nginx openwebui open-terminal searxng search-gateway llama-metrics-discovery prometheus grafana
 python3 "$SOURCE/scripts/lock_images.py" --root "$TARGET"
 AI_USE_IMAGE_LOCK=1
+
+log 'Checking GPU computation in the built ROCm container'
+compose run --rm --no-deps -T --entrypoint python comfyui - < "$SOURCE/scripts/verify_gpu_compute.py"
+log 'Checking GPU visibility in the built llama.cpp runtime'
+if ! LLAMA_DEVICES=$(compose run --rm --no-deps -T --entrypoint llama-server llama-cpp --list-devices 2>&1); then
+  printf '%s\n' "$LLAMA_DEVICES" >&2
+  die 'The llama.cpp GPU runtime check failed.'
+fi
+printf '%s\n' "$LLAMA_DEVICES"
+printf '%s\n' "$LLAMA_DEVICES" | grep -Eq '^[[:space:]]*(ROCm|HIP)[0-9]+:' || die 'llama.cpp did not list a ROCm GPU device.'
 
 # Prefetch is intentionally before service startup: readiness should not wait on
 # multi-gigabyte model downloads. This step still runs with --no-start.
