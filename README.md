@@ -782,7 +782,7 @@ After updating the stack files, rebuild and recreate ComfyUI on the GPU host:
 ```bash
 sudo docker compose up -d --build --no-deps comfyui
 sudo docker compose logs --tail=100 comfyui
-sudo docker compose exec -T comfyui python -c 'import json, urllib.request; nodes = json.load(urllib.request.urlopen("http://localhost:8188/object_info")); assert "UnetLoaderGGUF" in nodes and "CLIPLoader" in nodes and "TextEncodeQwenImage21" in nodes; print("GGUF loaders available")'
+sudo docker compose exec -T comfyui python3 -c 'import json, urllib.request; nodes = json.load(urllib.request.urlopen("http://localhost:8188/object_info")); assert "UnetLoaderGGUF" in nodes and "CLIPLoader" in nodes and "TextEncodeQwenImage21" in nodes; print("GGUF loaders available")'
 ```
 
 `COMFYUI_GGUF_REF` defaults to `main`; set it to a commit SHA in `.env` for
@@ -1543,7 +1543,7 @@ and `data/` before upgrades.
   `AMD_VISIBLE_DEVICES` value.
 - **ComfyUI cannot see the GPU:** check `docker compose logs comfyui`, verify
   that `HIP_VISIBLE_DEVICES` selects an available device, and run
-  `docker compose exec comfyui python -c 'import torch; print(torch.cuda.is_available(), torch.version.hip)'`.
+  `docker compose exec comfyui python3 -c 'import torch; print(torch.cuda.is_available(), torch.version.hip)'`.
 - **NGINX continuously restarts:** confirm `nginx.crt` and `nginx.key` exist,
   then run `docker compose logs nginx`.
 - **Open WebUI receives 401 responses:** make the `.env` API key and the secret

@@ -226,7 +226,7 @@ python3 "$SOURCE/scripts/lock_images.py" --root "$TARGET"
 AI_USE_IMAGE_LOCK=1
 
 log 'Checking GPU computation in the built ROCm container'
-compose run --rm --no-deps -T --entrypoint python comfyui - < "$SOURCE/scripts/verify_gpu_compute.py"
+compose run --rm --no-deps -T --entrypoint python3 comfyui - < "$SOURCE/scripts/verify_gpu_compute.py"
 log 'Checking GPU visibility in the built llama.cpp runtime'
 if ! LLAMA_DEVICES=$(compose run --rm --no-deps -T --entrypoint llama-server llama-cpp --list-devices 2>&1); then
   printf '%s\n' "$LLAMA_DEVICES" >&2
@@ -251,13 +251,13 @@ if ((START)); then
   # Verify ComfyUI directly as well as its inherited Dockerfile health check.
   comfy_ready=0
   for ((attempt=0; attempt<60; attempt++)); do
-    if compose exec -T comfyui python -m urllib.request http://localhost:8188/system_stats >/dev/null 2>&1; then
+    if compose exec -T comfyui python3 -m urllib.request http://localhost:8188/system_stats >/dev/null 2>&1; then
       comfy_ready=1; break
     fi
     sleep 5
   done
   ((comfy_ready)) || die 'ComfyUI did not respond within the readiness checks.'
-  compose exec -T comfyui python - < "$SOURCE/scripts/verify_comfyui_gpu.py"
+  compose exec -T comfyui python3 - < "$SOURCE/scripts/verify_comfyui_gpu.py"
   curl -kfsS --retry 10 --retry-delay 3 --retry-all-errors --max-time 15 https://localhost:8443/health >/dev/null
   compose exec -T openwebui python /etc/openwebui/verify_qwen_workflows.py
   compose exec -T openwebui python /etc/openwebui/apply_qwen_images.py
