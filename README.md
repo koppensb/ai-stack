@@ -714,14 +714,16 @@ sudo chmod 600 config/nginx/certs/nginx.key
 
 ## 5. Build the ROCm Images
 
-Both `llama-cpp` and `comfyui` have Compose build definitions. The llama.cpp
+`llama-cpp`, `comfyui` and `openwebui` have Compose build definitions.
+Open WebUI uses a Docker Hub base image plus a matching Pandoc binary; see
+[Open WebUI document conversion](INSTALL.md#open-webui-document-conversion). The llama.cpp
 image is tagged `llama_cpp_rocm:latest`; its Dockerfile defaults to `gfx1201`
 and the `master` branch. Determine the GPU target with `rocminfo`, then build
 with `ROCM_GFX_TARGETS` and `LLAMA_CPP_REF` set in `.env`:
 
 ```bash
 sudo nano .env
-sudo docker compose build llama-cpp comfyui
+sudo docker compose build llama-cpp comfyui openwebui
 ```
 
 Set `ROCM_GFX_TARGETS` to the detected GPU target and `LLAMA_CPP_REF` to a tested
@@ -981,7 +983,8 @@ For manual deployments:
 
 ```bash
 sudo install -d -m 0750 -o 1000 -g 1000 data/open-terminal
-sudo docker compose pull open-terminal openwebui
+sudo docker compose pull open-terminal
+sudo docker compose build openwebui
 sudo docker compose up -d --no-deps --wait open-terminal openwebui
 sudo docker compose exec -T openwebui python -c 'import sys; sys.path.insert(0, "/etc/openwebui"); exec(compile(sys.stdin.read(), "<setup>", "exec"))' < /path/to/ai-stack/config/openwebui/apply_open_terminal.py
 sudo docker compose restart openwebui
@@ -1523,8 +1526,9 @@ sudo docker compose restart llama-cpp
 # Stop and remove containers while preserving bind-mounted data
 sudo docker compose down
 
-# Pull upstream images and recreate services
+# Pull upstream images, rebuild the Open WebUI derivative and recreate services
 sudo docker compose pull --ignore-pull-failures
+sudo docker compose build openwebui
 sudo docker compose up -d
 ```
 

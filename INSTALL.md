@@ -26,7 +26,8 @@ For file responsibilities, configuration precedence, and workflow formats, see
 3. Configures the AMD runtime, restarting Docker if required.
 4. Copies only manifest-listed build/runtime files and prepares persistent directories and permissions.
 5. Generates missing credentials, a SearXNG secret, an Open Terminal API key and a self-signed TLS certificate.
-6. Builds llama.cpp and ComfyUI, pulls other images, then checks llama.cpp GPU
+6. Builds llama.cpp, ComfyUI and the Open WebUI Pandoc derivative, pulls other
+   images, then checks llama.cpp GPU
    visibility and performs a small computation in the ComfyUI ROCm container.
 7. Downloads every chat preset from `config/llama-cpp/models.ini`, including MTP
    heads and automatically selected vision projectors, into `data/llama-cpp`.
@@ -356,3 +357,21 @@ After pulling/building, the installer writes `compose.image-lock.json` and
 An installer update deliberately refreshes this lock. For manual starts, append
 `-f compose.image-lock.json` to the Compose file arguments. Do not prune locked
 images until the next successful update. No vulnerability scan is implied by locking.
+
+## Open WebUI document conversion
+
+`openwebui_pandoc.dockerfile` derives `ai-stack-openwebui:latest` from Docker Hub
+`openwebui/open-webui:${OPENWEBUI_VERSION}`. Every explicit build checks for an
+updated base image. The build reads its installed `pypandoc` version and installs
+the exact matching `pypandoc-binary` wheel without dependencies into an isolated
+directory. The existing Python wrapper is retained. `PYPANDOC_PANDOC` selects
+the bundled executable explicitly; the wheel release number is not the Pandoc
+executable version. A missing matching wheel or a failed sandboxed ODT/DOCX
+round trip stops the build. Sandbox protection remains enabled.
+
+Deploy with the updated installer and `--update-files`; it builds the derivative
+and refreshes the image lock before recreating services. Existing credentials
+and data are preserved. Normal restarts install nothing. A manual
+`docker compose pull openwebui` does not update this local image; use
+`docker compose build openwebui` instead. Installer-managed deployments also
+require a refreshed image lock, so use the installer for their upgrades.

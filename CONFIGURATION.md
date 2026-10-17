@@ -222,7 +222,7 @@ it. See README.md for deployment and live verification steps.
 
 ## Context compaction (Open WebUI 0.12.0)
 
-The example uses Docker Hub image `openwebui/open-webui:latest` via
+The Open WebUI derivative uses Docker Hub base image `openwebui/open-webui:latest` via
 `OPENWEBUI_VERSION=latest`. Pin a tested release tag for reproducible upgrades.
 Open WebUI 0.12.0 compacts between
 native tool rounds as well as before a reply, keeps tool calls with their
@@ -284,7 +284,7 @@ settings from `.env.example` as needed; Compose includes defaults for them.
 Recreate both `llama-cpp` and `openwebui` to apply command/environment changes:
 
 ```bash
-docker compose pull openwebui
+docker compose build openwebui
 docker compose up -d --force-recreate llama-cpp openwebui
 docker compose logs openwebui | tail -n 80
 ```

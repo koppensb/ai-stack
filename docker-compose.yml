@@ -357,7 +357,15 @@ services:
   # The wrapper loads workflow JSON and starts the one-time preset helper.
   # Saved admin settings can override environment defaults in existing databases.
   openwebui:
-    image: openwebui/open-webui:${OPENWEBUI_VERSION:?Set OPENWEBUI_VERSION in .env (see .env.example)}
+    build:
+      context: .
+      dockerfile: openwebui_pandoc.dockerfile
+      # Refresh moving upstream tags on explicit builds, never on startup.
+      pull: true
+      args:
+        OPENWEBUI_VERSION: ${OPENWEBUI_VERSION:?Set OPENWEBUI_VERSION in .env (see .env.example)}
+    image: ai-stack-openwebui:latest
+    pull_policy: never
     container_name: openwebui
     command: ["python", "/etc/openwebui/start.py"]
     restart: unless-stopped

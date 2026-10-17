@@ -1,6 +1,7 @@
-# Send only the build recipes to Docker. Both images fetch their sources during
+# Send only the build recipes to Docker. Images fetch their sources during
 # the build; local credentials, model weights and runtime data must stay outside
 # the build context. Add explicit exceptions if a future Dockerfile needs COPY.
 **
 !comfyui_rocm.dockerfile
 !llama_cpp_rocm.dockerfile
+!openwebui_pandoc.dockerfile

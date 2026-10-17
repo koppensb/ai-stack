@@ -221,7 +221,9 @@ compose config --quiet
 
 log "Building ROCm images (GPU: $GFX); the initial build may take a long time"
 compose build llama-cpp comfyui
-compose pull nginx openwebui open-terminal searxng search-gateway llama-metrics-discovery prometheus grafana
+log 'Building Open WebUI with matching Pandoc binary and checking document conversion'
+compose build openwebui
+compose pull nginx open-terminal searxng search-gateway llama-metrics-discovery prometheus grafana
 python3 "$SOURCE/scripts/lock_images.py" --root "$TARGET"
 AI_USE_IMAGE_LOCK=1
 

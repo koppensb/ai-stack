@@ -69,6 +69,12 @@ or a moving upstream image tag describes an installed deployment exactly.
 - Parse dotenv settings through the existing Compose-based mechanism; do not
   source `.env` as shell code. Preserve required-variable checks and explicit
   precedence between templates, saved deployment values, and environment values.
+- Prefer Docker Hub images published by the upstream project or maintained as
+  Docker Official Images when a suitable image is available. Verify the publisher,
+  required tag, architecture and feature compatibility before switching registries;
+  do not assume tag names are identical. If no suitable official Docker Hub image
+  exists, use the upstream-supported registry (for example GHCR) or retain the
+  required local build. Do not substitute unofficial mirrors merely to use Docker Hub.
 - Preserve installed image identities and the generated image lock. Boot must not
   build images, pull updates, or download model weights.
 - Changes to saved Open WebUI settings may require an explicit migration; changing
