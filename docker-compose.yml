@@ -357,7 +357,7 @@ services:
   # The wrapper loads workflow JSON and starts the one-time preset helper.
   # Saved admin settings can override environment defaults in existing databases.
   openwebui:
-    image: ghcr.io/open-webui/open-webui:${OPENWEBUI_VERSION:?Set OPENWEBUI_VERSION in .env (see .env.example)}
+    image: openwebui/open-webui:${OPENWEBUI_VERSION:?Set OPENWEBUI_VERSION in .env (see .env.example)}
     container_name: openwebui
     command: ["python", "/etc/openwebui/start.py"]
     restart: unless-stopped

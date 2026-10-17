@@ -222,7 +222,9 @@ it. See README.md for deployment and live verification steps.
 
 ## Context compaction (Open WebUI 0.12.0)
 
-The example pins `OPENWEBUI_VERSION=v0.12.0`. This release compacts between
+The example uses Docker Hub image `openwebui/open-webui:latest` via
+`OPENWEBUI_VERSION=latest`. Pin a tested release tag for reproducible upgrades.
+Open WebUI 0.12.0 compacts between
 native tool rounds as well as before a reply, keeps tool calls with their
 results, and provides separate threshold caps and retention controls. Coding,
 Allround and Image Generation already use native function calling.
@@ -276,7 +278,8 @@ function calling and can introduce an extra tool lookup.
 Deploy the changed Compose file and `config/openwebui/` helpers together. The
 installer's deployment manifest includes the new helper. Existing `.env` values
 are preserved by the installer: explicitly change `OPENWEBUI_VERSION` to
-`v0.12.0` if it is pinned to an older version or still uses `main`. Add the new
+`latest` to use the Docker Hub default, especially if it still uses the GHCR
+`main` tag. Add the new
 settings from `.env.example` as needed; Compose includes defaults for them.
 Recreate both `llama-cpp` and `openwebui` to apply command/environment changes:
 
