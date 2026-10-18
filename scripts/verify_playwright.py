@@ -1,9 +1,11 @@
 """Check the built browser pair in a disposable Compose project, without WebUI data."""
 import argparse
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import uuid
 
@@ -56,6 +58,67 @@ print('WebUI client/server protocol, JavaScript and public/private egress checks
 '''
 
 
+def diagnostic_command(command, env):
+    """Collect bounded diagnostics without allowing a second failure to hide the first."""
+    try:
+        result = subprocess.run(command, env=env, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True, timeout=15, check=False)
+        return {"exit_code": result.returncode, "output": result.stdout or ""}
+    except (OSError, subprocess.SubprocessError) as error:
+        return {"error": str(error)}
+
+
+def save_failure(root, check, env, phase, error):
+    """Persist only test output and container State, never full inspect/env/config data."""
+    output = getattr(error, "stdout", None) or ""
+    if isinstance(output, bytes):
+        output = output.decode(errors="replace")
+    report = {
+        "time_utc": datetime.now(timezone.utc).isoformat(),
+        "phase": phase,
+        "error": str(error),
+        "check_output": output,
+        "services": {},
+        "logs": diagnostic_command(check + ["logs", "--no-color", "--tail", "80",
+                                              "playwright", "web-egress"], env),
+    }
+    for service in ("playwright", "web-egress"):
+        identifiers = diagnostic_command(check + ["ps", "--all", "--quiet", service], env)
+        states = []
+        for identifier in identifiers.get("output", "").splitlines():
+            # Ignore CLI errors/warnings; only inspect actual container identifiers.
+            if len(identifier) in (12, 64) and all(char in "0123456789abcdef" for char in identifier):
+                result = diagnostic_command(["docker", "inspect", "--format", "{{json .State}}", identifier], env)
+                try:
+                    states.append(json.loads(result.get("output", "")))
+                except (TypeError, ValueError):
+                    states.append(result)
+        report["services"][service] = {"lookup": identifiers, "states": states}
+    # Root-only diagnostics survive cleanup of the disposable containers.
+    path = root / "playwright-check-failure.json"
+    descriptor, temporary = tempfile.mkstemp(prefix=".playwright-diagnostic-", dir=root)
+    try:
+        with os.fdopen(descriptor, "w") as destination:
+            json.dump(report, destination, indent=2)
+            destination.write("\n")
+        os.replace(temporary, path)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+    if output:
+        print(output, file=sys.stderr)
+    print(json.dumps(report["services"], indent=2), file=sys.stderr)
+    print(report["logs"].get("output", report["logs"].get("error", "")), file=sys.stderr)
+    print(f"Browser failure diagnostics saved to {path}", file=sys.stderr)
+    return path
+
+
+def run_check(command, env, **kwargs):
+    result = subprocess.run(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            text=True, check=True, **kwargs)
+    if result.stdout:
+        print(result.stdout, flush=True)
+
+
 def verify(root):
     env = {"PATH": os.environ["PATH"], "HOME": os.environ.get("HOME", "/root")}
     command = ["docker", "compose", "--project-name", "ai-stack", "--env-file", str(root / ".env"),
@@ -81,27 +144,40 @@ def verify(root):
         path = Path(temporary) / "compose.json"
         path.write_text(json.dumps({"services": services, "networks": networks}))
         check = ["docker", "compose", "--project-name", project, "-f", str(path)]
+        phase = "browser/proxy startup and health checks"
         try:
-            subprocess.run(check + ["up", "-d", "--no-build", "--pull", "never", "--wait",
-                                    "--wait-timeout", "120"], env=env, check=True)
+            run_check(check + ["up", "-d", "--no-build", "--pull", "never", "--wait",
+                               "--wait-timeout", "120"], env)
+            phase = "WebUI client protocol, JavaScript and egress checks"
             client = ["docker", "run", "--rm", "--name", client_name, "--pull", "never", "--network", project + "_browser-net",
                       "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
                       "--tmpfs", "/tmp:rw,nosuid,nodev,size=64m,mode=1777", "--entrypoint", "python",
                       "-i", webui, "-"]
-            subprocess.run(client, input=CLIENT_CHECK, text=True, env=env, check=True, timeout=120)
+            run_check(client, env, input=CLIENT_CHECK, timeout=120)
         except (subprocess.SubprocessError, OSError) as error:
-            subprocess.run(check + ["logs", "--tail", "80", "playwright", "web-egress"], env=env, check=False)
+            try:
+                diagnostic_path = save_failure(root, check, env, phase, error)
+                detail = f"Read {diagnostic_path} for the actual failure and healthcheck output."
+            except (OSError, subprocess.SubprocessError) as diagnostic_error:
+                detail = f"Could not save diagnostics: {diagnostic_error}. Original failure: {error}."
             raise RuntimeError(
-                "Browser verification failed. Check the logs, public HTTPS access and host "
-                "user-namespace/AppArmor policy. The Chromium sandbox must remain enabled. "
+                f"Browser verification failed during {phase}. {detail} "
+                "The Chromium sandbox must remain enabled. "
                 "The installed image lock has not been replaced."
             ) from error
         finally:
             # A timed-out Docker CLI can leave its container running. Remove it
             # explicitly before tearing down the disposable network.
-            subprocess.run(["docker", "rm", "-f", client_name], env=env, check=False,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            subprocess.run(check + ["down", "--volumes", "--remove-orphans"], env=env, check=True)
+            for cleanup in (["docker", "rm", "-f", client_name],
+                            check + ["down", "--volumes", "--remove-orphans"]):
+                # Cleanup must not replace the useful original verification error.
+                try:
+                    result = subprocess.run(cleanup, env=env, check=False, timeout=30,
+                                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                    if "down" in cleanup and result.returncode:
+                        print(f"Browser cleanup failed: {result.stdout}", file=sys.stderr)
+                except (OSError, subprocess.SubprocessError) as cleanup_error:
+                    print(f"Browser cleanup failed: {cleanup_error}", file=sys.stderr)
 
 
 def main():

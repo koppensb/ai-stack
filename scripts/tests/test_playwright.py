@@ -115,6 +115,7 @@ class PreparationTests(unittest.TestCase):
                 self.assertIn("sha256:webui", command)
                 self.assertEqual(command[-2:], ["sha256:webui", "-"])
                 raise subprocess.CalledProcessError(1, "client")
+            return subprocess.CompletedProcess(command, 0, stdout="")
 
         with tempfile.TemporaryDirectory() as directory, \
                 patch.object(verify.subprocess, "check_output", side_effect=[json.dumps(config), '[{"Id":"sha256:webui"}]']), \
@@ -123,6 +124,45 @@ class PreparationTests(unittest.TestCase):
                 verify.verify(Path(directory))
         self.assertIn("down", commands[-1])
         self.assertIn("--volumes", commands[-1])
+
+    def test_startup_failure_saves_health_output_before_cleanup(self):
+        config = {"services": {"openwebui": {"image": "webui"},
+                               "playwright": {"image": "browser"}, "web-egress": {"image": "proxy"}},
+                  "networks": {"browser-net": {"internal": True}, "browser-outbound": {}}}
+        identifier = "a" * 64
+        commands = []
+        state = {"Status": "running", "Health": {"Status": "unhealthy", "Log": [
+            {"ExitCode": 1, "Output": "sandbox health failure details"}]}}
+
+        def run(command, **kwargs):
+            commands.append(command)
+            if "up" in command:
+                raise subprocess.CalledProcessError(1, command, output="browser is unhealthy")
+            if "ps" in command:
+                return subprocess.CompletedProcess(command, 0, stdout=identifier + "\n")
+            if "inspect" in command:
+                self.assertIn("{{json .State}}", command)
+                return subprocess.CompletedProcess(command, 0, stdout=json.dumps(state))
+            if "down" in command:
+                return subprocess.CompletedProcess(command, 1, stdout="cleanup failure")
+            return subprocess.CompletedProcess(command, 0, stdout="container logs")
+
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(verify.subprocess, "check_output", side_effect=[json.dumps(config), '[{"Id":"sha256:webui"}]']), \
+                patch.object(verify.subprocess, "run", side_effect=run), \
+                patch("sys.stderr", new_callable=io.StringIO):
+            root = Path(directory)
+            with self.assertRaisesRegex(RuntimeError, "startup and health checks"):
+                verify.verify(root)
+            path = root / "playwright-check-failure.json"
+            report = json.loads(path.read_text())
+            self.assertEqual(report["check_output"], "browser is unhealthy")
+            self.assertEqual(report["services"]["playwright"]["states"][0], state)
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            self.assertFalse(list(root.glob(".playwright-diagnostic-*")))
+        self.assertLess(next(i for i, cmd in enumerate(commands) if "inspect" in cmd),
+                        next(i for i, cmd in enumerate(commands) if "down" in cmd))
+        self.assertFalse(any("--entrypoint" in cmd for cmd in commands))
 
 
 class EgressTests(unittest.TestCase):

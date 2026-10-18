@@ -70,6 +70,7 @@ instructions.txt
 /image-inventory.json
 /compose.playwright.json
 /playwright-inventory.json
+/playwright-check-failure.json
 /.playwright-*
 /.image-lock-*
 /config/nginx/.comfyui-auth-*

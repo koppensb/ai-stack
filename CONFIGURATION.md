@@ -472,6 +472,15 @@ This runs before replacing the image lock, including under `--no-start`. It requ
 Docker, permitted user namespaces and Internet access to `https://example.com/`.
 A full chat invoking `fetch_url` still needs verification on the deployed WebUI.
 
+On failure, the verifier saves `/opt/ai-stack/playwright-check-failure.json`
+(or the chosen `--root`) with mode 0600 before removing the disposable project.
+It includes the failing phase, captured check output, bounded service logs and
+container State/Health output. Full inspect data, environment variables and the
+deployment configuration are not saved. Cleanup failures cannot mask the original
+verification error. The report is ignored by Git and retains the most recent failure.
+To diagnose an already-built pair without repeating installation, run the verifier
+from the complete source tree with `--root /opt/ai-stack` and inspect that report.
+
 ## Security defaults
 
 `apply_security.py` synchronizes managed provider credentials, creates the empty
