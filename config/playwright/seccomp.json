@@ -1101,11 +1101,7 @@
         "chroot"
       ],
       "action": "SCMP_ACT_ALLOW",
-      "includes": {
-        "caps": [
-          "CAP_SYS_CHROOT"
-        ]
-      }
+      "comment": "Chromium uses chroot while building its user-namespace sandbox. Allow the syscall even with container capabilities dropped; kernel namespace/capability checks still apply."
     },
     {
       "names": [

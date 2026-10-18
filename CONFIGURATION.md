@@ -460,6 +460,13 @@ reported by `chrome://sandbox`; failure stops readiness rather than disabling th
 [Moby default profile](https://github.com/moby/profiles/blob/main/seccomp/default.json)
 with the `clone`, `setns`, `unshare` allowance recommended by
 [Playwright](https://playwright.dev/python/docs/docker#crawling-and-scraping).
+It also allows `chroot` independently of container capabilities: Chromium calls
+it while constructing its user-namespace sandbox. The Moby capability-gated rule
+would otherwise be omitted with `cap_drop: ALL`, causing the fatal
+`sys_chroot("/proc/self/fdinfo/")` check. This permits the syscall through seccomp;
+the kernel still checks the caller's privileges in its user namespace. No container
+capability is added. The profile is read by Docker on container creation, so this
+correction requires recreation, not a browser image rebuild or a plain restart.
 It preserves the modern `clone3` ENOSYS fallback for libc. Review this checked-in
 policy on host/browser upgrades; it is not downloaded automatically at startup.
 

@@ -286,6 +286,24 @@ class EgressTests(unittest.TestCase):
                 thread.join()
 
 
+class SandboxPolicyTests(unittest.TestCase):
+    def test_namespace_sandbox_syscalls_survive_dropped_container_capabilities(self):
+        profile = json.loads((ROOT / "config/playwright/seccomp.json").read_text())
+        self.assertEqual(profile["defaultAction"], "SCMP_ACT_ERRNO")
+        # Moby excludes capability-gated allow rules when all container caps are
+        # dropped. Chromium still needs these syscalls in its own user namespace.
+        permitted = set()
+        for rule in profile["syscalls"]:
+            if (rule["action"] == "SCMP_ACT_ALLOW" and not rule.get("includes")
+                    and not rule.get("excludes") and not rule.get("args")):
+                permitted.update(rule["names"])
+        self.assertTrue({"clone", "setns", "unshare", "chroot"} <= permitted)
+        self.assertNotIn("mount", permitted)
+        server = json.loads((ROOT / "config/playwright/server.json").read_text())
+        self.assertTrue(server["chromiumSandbox"])
+        self.assertNotIn("--no-sandbox", server.get("args", []))
+
+
 class MigrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_retries_incomplete_writes_and_preserves_later_edits(self):
         class Config:
