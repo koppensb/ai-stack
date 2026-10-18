@@ -1,0 +1,13 @@
+{
+  "host": "0.0.0.0",
+  "port": 3000,
+  "wsPath": "/browser",
+  "headless": true,
+  "channel": "chromium",
+  "chromiumSandbox": true,
+  "proxy": {
+    "server": "http://web-egress:3128"
+  },
+  "args": ["--proxy-bypass-list=<-loopback>"],
+  "ignoreDefaultArgs": ["--disable-dev-shm-usage"]
+}

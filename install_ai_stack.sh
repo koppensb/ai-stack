@@ -82,7 +82,7 @@ MANIFEST="$SOURCE/scripts/deployment_files.txt"
 while IFS= read -r file; do
   [[ -f "$SOURCE/$file" ]] || die "Missing deployment file: $file"
 done < "$MANIFEST"
-for f in scripts/install_gpu_driver.sh scripts/verify_gpu_compute.py config/openwebui/apply_open_terminal.py scripts/download_models.py scripts/check_managed_files.py scripts/configure_install.py scripts/security_settings.py scripts/lock_images.py scripts/check_amd_runtime.py scripts/verify_comfyui_gpu.py config/openwebui/apply_qwen_images.py config/openwebui/apply_openwebui_parameters.py config/openwebui/verify_qwen_workflows.py ai-stack.service .env.example; do
+for f in scripts/install_gpu_driver.sh scripts/verify_gpu_compute.py config/openwebui/apply_open_terminal.py scripts/download_models.py scripts/check_managed_files.py scripts/configure_install.py scripts/security_settings.py scripts/lock_images.py scripts/prepare_playwright.py scripts/verify_playwright.py scripts/check_amd_runtime.py scripts/verify_comfyui_gpu.py config/openwebui/apply_qwen_images.py config/openwebui/apply_openwebui_parameters.py config/openwebui/verify_qwen_workflows.py ai-stack.service .env.example; do
   [[ -f "$SOURCE/$f" ]] || die "Missing source file: $SOURCE/$f (see --source)."
 done
 if [[ "$SOURCE" != "$TARGET" && -d "$TARGET" ]] && (( ! UPDATE_FILES )); then
@@ -184,8 +184,10 @@ if [[ ! -f .env ]]; then install -m 0600 "$SOURCE/.env.example" .env; fi
 AI_USE_IMAGE_LOCK=0
 compose() {
   local image_lock_args=()
+  local browser_build_args=()
+  if [[ -f "$TARGET/compose.playwright.json" ]]; then browser_build_args=(-f "$TARGET/compose.playwright.json"); fi
   if ((AI_USE_IMAGE_LOCK)); then image_lock_args=(-f "$TARGET/compose.image-lock.json"); fi
-  env -i PATH="$PATH" HOME=/root docker compose --project-name ai-stack --env-file "$TARGET/.env" -f "$TARGET/docker-compose.yml" -f "$TARGET/compose.install.yml" "${image_lock_args[@]}" "$@"
+  env -i PATH="$PATH" HOME=/root docker compose --project-name ai-stack --env-file "$TARGET/.env" -f "$TARGET/docker-compose.yml" -f "$TARGET/compose.install.yml" "${browser_build_args[@]}" "${image_lock_args[@]}" "$@"
 }
 export AI_INSTALL_SOURCE="$SOURCE"
 export AI_INSTALL_NON_INTERACTIVE="$NON_INTERACTIVE"
@@ -223,7 +225,13 @@ log "Building ROCm images (GPU: $GFX); the initial build may take a long time"
 compose build llama-cpp comfyui
 log 'Building Open WebUI with matching Pandoc binary and checking document conversion'
 compose build openwebui
-compose pull nginx open-terminal searxng search-gateway llama-metrics-discovery prometheus grafana
+log 'Deriving the remote browser version from the built Open WebUI image'
+python3 "$SOURCE/scripts/prepare_playwright.py" --root "$TARGET"
+compose build playwright
+compose pull web-egress nginx open-terminal searxng search-gateway llama-metrics-discovery prometheus grafana
+log 'Checking browser compatibility, sandbox and egress in a disposable project'
+# This also runs with --no-start: only disposable check containers are started.
+python3 "$SOURCE/scripts/verify_playwright.py" --root "$TARGET"
 python3 "$SOURCE/scripts/lock_images.py" --root "$TARGET"
 AI_USE_IMAGE_LOCK=1
 
@@ -264,6 +272,7 @@ if ((START)); then
   compose exec -T openwebui python /etc/openwebui/verify_qwen_workflows.py
   compose exec -T openwebui python /etc/openwebui/apply_qwen_images.py
   compose exec -T openwebui python /etc/openwebui/apply_open_terminal.py
+  compose exec -T openwebui python /etc/openwebui/apply_openwebui_parameters.py --browser-loader-only
   # Database-backed settings are cached in the web process; restart after writes.
   compose restart openwebui
   compose up -d --no-build --wait --wait-timeout "$WAIT_SECONDS" openwebui

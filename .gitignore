@@ -68,5 +68,8 @@ instructions.txt
 /config/nginx/comfyui.htpasswd
 /compose.image-lock.json
 /image-inventory.json
+/compose.playwright.json
+/playwright-inventory.json
+/.playwright-*
 /.image-lock-*
 /config/nginx/.comfyui-auth-*

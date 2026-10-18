@@ -18,6 +18,13 @@ networks:
   monitoring-net:
     driver: bridge
     internal: true
+  browser-net:
+    # Only WebUI, the browser and its egress proxy share this control network.
+    driver: bridge
+    internal: true
+  browser-outbound:
+    # The proxy is the only service attached here; the browser has no direct egress.
+    driver: bridge
 
 # File-backed Compose secrets retain host permissions. The installer adds a
 # read ACL for Prometheus so it can authenticate model-metrics requests.
@@ -354,6 +361,64 @@ services:
       start_period: 60s
       start_interval: 5s
 
+  web-egress:
+    image: python:3-alpine
+    restart: unless-stopped
+    command: ["python", "/etc/web-egress/proxy.py"]
+    user: "65534:65534"
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    mem_limit: 128m
+    cpus: 0.5
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+    networks: [browser-net, browser-outbound]
+    volumes:
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/web-egress:/etc/web-egress:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; o=urllib.request.build_opener(urllib.request.ProxyHandler({})); assert o.open('http://127.0.0.1:3128/health', timeout=3).status == 200"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+      start_interval: 2s
+
+  playwright:
+    build:
+      context: .
+      dockerfile: playwright.dockerfile
+      # prepare_playwright.py supplies exact inputs in compose.playwright.json.
+    image: ai-stack-playwright:latest
+    pull_policy: never
+    restart: unless-stopped
+    init: true
+    user: "pwuser"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/playwright/seccomp.json
+    pids_limit: ${PLAYWRIGHT_PIDS_LIMIT:-256}
+    mem_limit: ${PLAYWRIGHT_MEMORY_LIMIT:-2g}
+    cpus: ${PLAYWRIGHT_CPU_LIMIT:-2}
+    shm_size: ${PLAYWRIGHT_SHM_SIZE:-512m}
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=512m,mode=1777
+    networks: [browser-net]
+    depends_on:
+      web-egress:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "/etc/playwright/healthcheck.py"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
+      start_interval: 5s
+
   # The wrapper loads workflow JSON and starts the one-time preset helper.
   # Saved admin settings can override environment defaults in existing databases.
   openwebui:
@@ -370,6 +435,8 @@ services:
     command: ["python", "/etc/openwebui/start.py"]
     restart: unless-stopped
     depends_on:
+      playwright:
+        condition: service_healthy
       search-gateway:
         condition: service_healthy
       open-terminal:
@@ -383,6 +450,7 @@ services:
       - frontend-net
       - terminal-net
       - backend-net
+      - browser-net
     expose:
       - "8080"
     environment:
@@ -452,6 +520,14 @@ services:
       WEB_SEARCH_CONCURRENT_REQUESTS: ${WEB_SEARCH_CONCURRENT_REQUESTS:?Set WEB_SEARCH_CONCURRENT_REQUESTS in .env (see .env.example)}
       WEB_LOADER_CONCURRENT_REQUESTS: ${WEB_LOADER_CONCURRENT_REQUESTS:?Set WEB_LOADER_CONCURRENT_REQUESTS in .env (see .env.example)}
       WEB_FETCH_MAX_CONTENT_LENGTH: "${WEB_FETCH_MAX_CONTENT_LENGTH:-50000}"
+      WEB_LOADER_ENGINE: playwright
+      PLAYWRIGHT_WS_URL: ws://playwright:3000/browser
+      PLAYWRIGHT_TIMEOUT: "${PLAYWRIGHT_TIMEOUT:-30000}"
+      ENABLE_RAG_LOCAL_WEB_FETCH: "false"
+      ENABLE_WEB_LOADER_SSL_VERIFICATION: "true"
+      # Browser traffic uses the server-side proxy. Client-side intercepted page
+      # requests use upstream SSRF checks; do not proxy model/Whisper downloads.
+      WEB_SEARCH_TRUST_ENV: "false"
     volumes:
       - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/config/openwebui:/etc/openwebui:ro
       - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/data/openwebui:/app/backend/data

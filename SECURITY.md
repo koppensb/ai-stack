@@ -134,6 +134,28 @@ claimed by this repository change.
 
 ## Deployment verification
 
+### Remote browser isolation
+
+Playwright runs separately as a non-root user, with Chromium's namespace/seccomp
+sandbox enabled, dropped capabilities, no-new-privileges, a read-only root and
+limited disposable storage/resources. Its control endpoint is reachable only on
+the internal browser network; it has no host-published port or public proxy route.
+Treat that endpoint as privileged browser control. Network isolation supplies its
+access boundary, not an Internet-facing authentication mechanism.
+
+The browser has no direct external route and uses the public-only web-egress proxy.
+The proxy rejects private, loopback, link-local, multicast, reserved and IPv6
+transition destinations and pins DNS answers to the actual connection address.
+WebUI's own intercepted requests remain subject to its upstream SSRF controls;
+WebUI still has its existing trusted integration/network access. These controls
+do not isolate a compromised WebUI process. See the precise boundaries and limits
+in [CONFIGURATION.md](CONFIGURATION.md#remote-playwright-web-loader).
+
+The installer derives the browser version from the actual WebUI image and verifies
+the pair in disposable containers before writing the image lock. Normal boot
+downloads/builds nothing. Container isolation shares the host kernel; keep the
+host and both application images maintained through deliberate installer updates.
+
 Before exposing the updated services, verify on the host:
 
 - `nginx -t` inside the recreated NGINX container and Compose health checks.

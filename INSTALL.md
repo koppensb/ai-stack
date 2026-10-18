@@ -26,9 +26,13 @@ For file responsibilities, configuration precedence, and workflow formats, see
 3. Configures the AMD runtime, restarting Docker if required.
 4. Copies only manifest-listed build/runtime files and prepares persistent directories and permissions.
 5. Generates missing credentials, a SearXNG secret, an Open Terminal API key and a self-signed TLS certificate.
-6. Builds llama.cpp, ComfyUI and the Open WebUI Pandoc derivative, pulls other
-   images, then checks llama.cpp GPU
+6. Builds llama.cpp, ComfyUI and the Open WebUI Pandoc derivative, derives the
+   browser version from that WebUI image, builds the matching isolated Playwright
+   service, pulls other images, then checks llama.cpp GPU
    visibility and performs a small computation in the ComfyUI ROCm container.
+   A disposable browser/proxy project checks the WebUI client's protocol,
+   JavaScript, active Chromium sandbox and public/private network access before
+   the new image lock is written. These checks also run with `--no-start`.
 7. Downloads every chat preset from `config/llama-cpp/models.ini`, including MTP
    heads and automatically selected vision projectors, into `data/llama-cpp`.
 8. Downloads the shared Qwen-Image-2.1 Q4_K_M model, Qwen3-VL BF16 text/vision
@@ -179,9 +183,9 @@ replace a full chat/image inference test on the target hardware.
 ## Deployment contents
 
 `scripts/deployment_files.txt` is the explicit copy allowlist. The installation
-folder receives Compose, both Dockerfiles, `.dockerignore`, service configuration,
-Qwen API and native editor workflows and three runtime Python programs: the
-Open WebUI startup wrapper, model-preset initializer, and VRAM coordinator.
+folder receives Compose, application Dockerfiles, `.dockerignore`, service
+configuration, Qwen API and native editor workflows and the runtime Python helpers,
+including the browser health check and public-only egress proxy.
 
 The installer, downloader, setup helpers, tests, documentation, `.env.example`
 and the systemd source file remain in the source tree. The installer runs the
@@ -359,6 +363,14 @@ An installer update deliberately refreshes this lock. For manual starts, append
 images until the next successful update. No vulnerability scan is implied by locking.
 
 ## Open WebUI document conversion
+
+For the separately built browser and automatic version matching, see
+[Remote Playwright web loader](CONFIGURATION.md#remote-playwright-web-loader).
+`OPENWEBUI_VERSION=latest` remains supported; no Playwright version is maintained
+in `.env`. Each installer update derives it from the newly built WebUI image.
+Browser sandbox/network verification must pass before the new image lock is saved.
+If host AppArmor or user-namespace policy rejects Chromium, review that host policy;
+do not work around it with root, privileged mode or disabled sandboxing.
 
 `openwebui_pandoc.dockerfile` derives `ai-stack-openwebui:latest` from Docker Hub
 `openwebui/open-webui:${OPENWEBUI_VERSION}`. Every explicit build checks for an

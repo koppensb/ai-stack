@@ -714,7 +714,7 @@ sudo chmod 600 config/nginx/certs/nginx.key
 
 ## 5. Build the ROCm Images
 
-`llama-cpp`, `comfyui` and `openwebui` have Compose build definitions.
+`llama-cpp`, `comfyui`, `openwebui` and `playwright` have Compose build definitions.
 Open WebUI uses a Docker Hub base image plus a matching Pandoc binary; see
 [Open WebUI document conversion](INSTALL.md#open-webui-document-conversion). The llama.cpp
 image is tagged `llama_cpp_rocm:latest`; its Dockerfile defaults to `gfx1201`
@@ -724,12 +724,25 @@ with `ROCM_GFX_TARGETS` and `LLAMA_CPP_REF` set in `.env`:
 ```bash
 sudo nano .env
 sudo docker compose build llama-cpp comfyui openwebui
+# Derive the browser version from that freshly built WebUI image.
+sudo python3 scripts/prepare_playwright.py --root "$PWD"
+sudo docker compose -f docker-compose.yml -f compose.playwright.json build playwright
+sudo docker compose pull web-egress
+sudo python3 scripts/verify_playwright.py --root "$PWD"
 ```
 
 Set `ROCM_GFX_TARGETS` to the detected GPU target and `LLAMA_CPP_REF` to a tested
 llama.cpp commit or tag. The base Compose file maps both build arguments from
 `.env`. The installer also maintains `compose.install.yml` for compatibility
 with existing service commands; it references the same `.env` variables.
+
+The isolated Playwright browser is also built locally. Its package version and
+upstream base-image digest are generated from the actual WebUI image; never rebuild
+it with guessed versions. The browser has no direct external route and uses a
+public-only proxy. See [browser configuration and security boundaries](CONFIGURATION.md#remote-playwright-web-loader).
+The installer automates this sequence. For manual upgrades, recreate WebUI/browser/
+proxy, run `python /etc/openwebui/apply_openwebui_parameters.py --browser-loader-only`
+inside WebUI, then restart WebUI to clear cached saved settings.
 
 ComfyUI defaults to ROCm 10.0, Ubuntu 26.04, PyTorch 2.13.0 and Python 3.14,
 with the latest stable ComfyUI release. Its container uses the AMD runtime and is attached
@@ -1529,6 +1542,9 @@ sudo docker compose down
 # Pull upstream images, rebuild the Open WebUI derivative and recreate services
 sudo docker compose pull --ignore-pull-failures
 sudo docker compose build openwebui
+sudo python3 scripts/prepare_playwright.py --root "$PWD"
+sudo docker compose -f docker-compose.yml -f compose.playwright.json build playwright
+sudo python3 scripts/verify_playwright.py --root "$PWD"
 sudo docker compose up -d
 ```
 

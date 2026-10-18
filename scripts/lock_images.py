@@ -16,6 +16,8 @@ def main():
                '-f', str(root/'docker-compose.yml')]
     if (root/'compose.install.yml').exists():
         command += ['-f', str(root/'compose.install.yml')]
+    if (root/'compose.playwright.json').exists():
+        command += ['-f', str(root/'compose.playwright.json')]
     # Match installer precedence; ambient variables must not override deployed .env.
     env = {'PATH': os.environ['PATH'], 'HOME': os.environ.get('HOME', '/root')}
     config = json.loads(subprocess.check_output(command + ['config', '--format', 'json'], env=env))

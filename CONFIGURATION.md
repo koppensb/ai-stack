@@ -13,6 +13,8 @@ running deployment's saved settings.
 | `docker-compose.yml` | Networks, mounts, service arguments, environment mappings and health checks | Recreate affected containers |
 | `llama_cpp_rocm.dockerfile` | ROCm SDK and compiled llama.cpp server/downloader | Rebuild image and recreate both llama.cpp services |
 | `comfyui_rocm.dockerfile` | Latest stable ComfyUI, GGUF nodes and completion-time VRAM cleanup patch | Rebuild image and recreate ComfyUI |
+| `playwright.dockerfile`, `config/playwright/` | Remote Chromium server, launch policy, seccomp profile and sandbox health check | Derive build inputs, rebuild and recreate browser |
+| `config/web-egress/proxy.py` | Public-only HTTP/HTTPS proxy for browser traffic | Recreate proxy |
 | `config/llama-cpp/models.ini` | Main router model IDs, downloads and per-model loading options | Prefetch new assets, then restart/recreate the router |
 | `config/llama-cpp-small/models.ini` | Small-model task router preset | Prefetch new assets, then restart/recreate that router |
 | `config/openwebui/apply_openwebui_parameters.py` | Global settings migrations, workspace presets, system prompts, sampling defaults and public read grants | Pending migrations on startup; explicit rerun for preset defaults |
@@ -388,6 +390,87 @@ Recreate Open WebUI to apply the change. The startup helper also updates the
 persisted `web.fetch.max_content_length` once for existing installations, verifies
 it, and records `ai_stack.web_fetch_content_limit_v1`. Later admin edits survive
 normal restarts.
+
+## Remote Playwright web loader
+
+`fetch_url`, URL retrieval and search-result page loading use the upstream
+Playwright loader. SearXNG and search-gateway still own search queries.
+The existing 50,000-character fetch limit and loader concurrency remain unchanged.
+
+There is no manually configured Playwright version. On each explicit install or
+update, `scripts/prepare_playwright.py` inspects the freshly built WebUI image by
+image ID in a read-only, networkless container without deployment mounts. It reads
+installed `playwright`/`unstructured` package versions and WebUI metadata (including
+`/app/package.json` for source-based official images), then pulls the official
+Linux amd64 `mcr.microsoft.com/playwright/python:v<detected>-noble` image.
+Missing packages, prerelease Playwright versions, unsupported architecture or
+unavailable images stop installation; no newer version or distribution is substituted.
+The current helpers require WebUI >= 0.12.0 for its config API and loader protections.
+
+`compose.playwright.json` contains only generated browser build arguments: the
+exact detected package version and the pulled upstream image's registry digest.
+`playwright-inventory.json` records the source WebUI image ID and detected versions.
+Neither file contains credentials; both are ignored by Git. The browser Dockerfile
+installs the matching package during build and uses Playwright's bundled CLI
+`launch-server` with `chromiumSandbox: true` and the full `chromium` headless channel
+(which provides `chrome://sandbox`). No custom Node/npm code or downloads are
+introduced at runtime. Chromium and its libraries live in the browser image;
+WebUI retains its upstream client/extraction packages and Pandoc derivative.
+
+The installer includes the generated override for builds and image inventory.
+Ordinary systemd startup does not need it: runtime settings are entirely in base
+Compose, and `compose.image-lock.json` selects the previously verified image IDs.
+Updating WebUI alone does not update an already running browser; always run the
+paired preparation/build/check sequence after an explicit WebUI rebuild.
+
+The browser uses the internal `browser-net`, shared only with WebUI and web-egress.
+It has no external route, host port, host IPC, data volume, credentials or GPU.
+Only web-egress also joins the dedicated external `browser-outbound` network.
+The proxy resolves each target once, rejects any non-public DNS answer (including
+mixed answers and IPv6 transition addresses), and connects to the validated numeric
+IP without a second DNS lookup. HTTP is restricted to port 80 and CONNECT to 443.
+Every redirected HTTP request or new HTTPS tunnel is checked again. The proxy
+allows 32 concurrent connections, 30-second idle timeouts, 120-second transfer
+lifetimes, 4 MiB HTTP request bodies and 64 MiB transfers. It does not log URLs.
+These bounds can prevent unusually large/slow pages from loading.
+
+Recent upstream loaders intercept browser requests and issue HTTP requests in the
+WebUI process. Those requests retain upstream SSRF/redirect validation with local
+web fetch disabled and SSL verification enabled. WebUI remains a trusted service
+with its existing networks; browser network isolation is not a firewall around
+WebUI or its model/terminal integrations. No global HTTP proxy is configured in
+WebUI, avoiding changes to model and Whisper downloads. `WEB_SEARCH_TRUST_ENV=false`
+makes the loader ignore ambient proxy variables.
+
+The one-time `ai_stack.remote_playwright_v1` migration writes and verifies
+`web.loader.engine`, `web.loader.playwright_ws_url`,
+`web.loader.playwright_timeout`, `web.loader.ssl_verification` and
+`web.search.trust_env`. Later admin edits survive restarts. The installer explicitly
+runs `--browser-loader-only` before its final WebUI restart to clear cached settings.
+For manual deployment, run the same migration and restart WebUI after recreation.
+
+Runtime defaults are `PLAYWRIGHT_TIMEOUT=30000` milliseconds, 2 CPUs, 2 GiB memory,
+256 processes and 512 MiB shared memory. The browser runs as `pwuser`, with dropped
+capabilities, no-new-privileges, read-only root, private shared memory and a bounded
+512 MiB `/tmp` tmpfs. Host kernel/AppArmor policy must permit Chromium's unprivileged
+user namespaces. Health checks require both namespace and Seccomp-BPF sandboxes
+reported by `chrome://sandbox`; failure stops readiness rather than disabling them.
+
+`config/playwright/seccomp.json` is based on the
+[Moby default profile](https://github.com/moby/profiles/blob/main/seccomp/default.json)
+with the `clone`, `setns`, `unshare` allowance recommended by
+[Playwright](https://playwright.dev/python/docs/docker#crawling-and-scraping).
+It preserves the modern `clone3` ENOSYS fallback for libc. Review this checked-in
+policy on host/browser upgrades; it is not downloaded automatically at startup.
+
+`scripts/verify_playwright.py` starts only the browser and proxy in a uniquely named,
+disposable Compose project. It retains their production restrictions and health
+checks and runs a client from the actual WebUI image without credentials or data
+mounts. It checks JavaScript, blocked internal HTTP/HTTPS destinations, browser
+proxy use and a public HTTPS fetch, then removes that project's containers/networks.
+This runs before replacing the image lock, including under `--no-start`. It requires
+Docker, permitted user namespaces and Internet access to `https://example.com/`.
+A full chat invoking `fetch_url` still needs verification on the deployed WebUI.
 
 ## Security defaults
 

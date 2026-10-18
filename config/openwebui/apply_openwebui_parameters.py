@@ -553,8 +553,35 @@ async def ensure_prompt_cache(models, form_type):
     print("Prompt caching enabled for all four model presets.", flush=True)
 
 
+async def apply_browser_loader(config):
+    """Migrate the remote loader once, verifying writes before recording completion."""
+    marker = "ai_stack.remote_playwright_v1"
+    if await resolve(config.get(marker)):
+        return
+    # Do not migrate a separately deployed helper without the matching service config.
+    if os.environ.get("WEB_LOADER_ENGINE") != "playwright":
+        return
+    endpoint = os.environ.get("PLAYWRIGHT_WS_URL", "")
+    timeout = int(os.environ.get("PLAYWRIGHT_TIMEOUT", "30000"))
+    if endpoint != "ws://playwright:3000/browser" or timeout <= 0:
+        raise ValueError("The managed browser requires its internal endpoint and a positive timeout")
+    settings = {
+        "web.loader.engine": "playwright",
+        "web.loader.playwright_ws_url": endpoint,
+        "web.loader.playwright_timeout": timeout,
+        "web.loader.ssl_verification": True,
+        "web.search.trust_env": False,
+    }
+    await resolve(config.upsert(settings))
+    for key, value in settings.items():
+        if await resolve(config.get(key)) != value:
+            raise RuntimeError(f"Failed to save {key}; browser migration is safe to retry.")
+    await resolve(config.upsert({marker: True}))
+
+
 async def bootstrap_once(models, users, form_type, config, grants=None):
     """Initialize once; migrate targeted defaults without resetting user edits."""
+    await apply_browser_loader(config)
     # Apply the fetch limit once to existing databases; preserve later admin edits.
     fetch_limit_key = "ai_stack.web_fetch_content_limit_v1"
     if not await resolve(config.get(fetch_limit_key)):
@@ -698,7 +725,13 @@ def main():
     parser.add_argument("--if-admin-exists", action="store_true")
     parser.add_argument("--wait-for-admin", action="store_true",
                         help="Wait for signup and initialize presets once per database.")
+    parser.add_argument("--browser-loader-only", action="store_true",
+                        help="Apply only the pending remote-browser settings migration.")
     args = parser.parse_args()
+    if args.browser_loader_only:
+        from open_webui.models.config import Config
+        asyncio.run(apply_browser_loader(Config))
+        return
     if args.wait_for_admin:
         asyncio.run(wait_for_admin())
         return

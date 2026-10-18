@@ -5,3 +5,10 @@
 !comfyui_rocm.dockerfile
 !llama_cpp_rocm.dockerfile
 !openwebui_pandoc.dockerfile
+!playwright.dockerfile
+!config/
+config/**
+!config/playwright/
+config/playwright/**
+!config/playwright/server.json
+!config/playwright/healthcheck.py
