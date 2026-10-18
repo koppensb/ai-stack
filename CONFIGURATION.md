@@ -455,6 +455,10 @@ capabilities, no-new-privileges, read-only root, private shared memory and a bou
 512 MiB `/tmp` tmpfs. Host kernel/AppArmor policy must permit Chromium's unprivileged
 user namespaces. Health checks require both namespace and Seccomp-BPF sandboxes
 reported by `chrome://sandbox`; failure stops readiness rather than disabling them.
+The health check reads the status table and accepts both the current
+`Layer 1 Sandbox: Namespace` and legacy `Namespace Sandbox: Yes` labels. PID and
+network namespaces and the Seccomp-BPF sandbox must all report `Yes`. Unknown or
+inactive states fail with the actual status table included in the diagnostic.
 
 `config/playwright/seccomp.json` is based on the
 [Moby default profile](https://github.com/moby/profiles/blob/main/seccomp/default.json)

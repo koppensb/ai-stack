@@ -309,7 +309,7 @@ Docker, Compose, Buildx and AMD Container Toolkit, creates credentials and TLS,
 builds both ROCm images, downloads every chat preset and all three Qwen image
 assets, checks startup and enables systemd autostart.
 Only files listed in `scripts/deployment_files.txt` are copied into `/opt/ai-stack`.
-Installer scripts, setup helpers, tests, templates and documentation stay in the
+Installer scripts, setup helpers, templates and documentation stay in the
 source tree. Runtime Python programs remain installed because services need them.
 Keep the source tree outside the deployment directory for updates and maintenance.
 See [INSTALL.md](INSTALL.md) for prerequisites, options and rerun behavior.
@@ -440,7 +440,7 @@ llama.cpp.
 
 The supplied Compose file and systemd unit use `/opt/ai-stack` by default.
 Copy only the deployment manifest entries. Keep the complete source tree at a
-separate location for installer runs, setup helpers and tests:
+separate location for installer runs and setup helpers:
 
 ```bash
 sudo mkdir -p /opt/ai-stack
@@ -459,7 +459,7 @@ sudo nano .env
 
 At minimum, replace these example values:
 
-- `LLAMA_CPP_API_KEY`: key used by Open WebUI and the test scripts.
+- `LLAMA_CPP_API_KEY`: key used by Open WebUI and installation checks.
 - `GRAFANA_ADMIN_PASSWORD`: initial Grafana administrator password.
 - `GRAFANA_SECRET_KEY`: stable random encryption key; see [SECURITY.md](SECURITY.md) before upgrading existing databases.
 - `COMFYUI_AUTH_USER` / `COMFYUI_AUTH_PASSWORD`: separate ComfyUI HTTPS login.
@@ -956,12 +956,15 @@ queue pressure. The dashboard uses currently supported llama.cpp metrics.
 No NGINX exporter or Alertmanager is included: rules are evaluated locally, but
 external notifications require an Alertmanager deployment and configuration.
 
-Validate the Compose configuration from the source tree:
+Validate the Compose configuration using the configured deployment `.env`:
 
 ```bash
-# Temporary random credentials are used only for syntax validation, never saved.
-python3 scripts/validate_compose.py
+cd /opt/ai-stack
+sudo docker compose config --quiet
 ```
+
+The installer performs this validation automatically. The quiet mode does not
+print resolved credentials or start services.
 
 Offline checks do not validate GPU inference. On the deployed host, also run:
 

@@ -178,5 +178,5 @@ Credential fields in `.env.example` and SearXNG settings are empty. Compose requ
 nonempty runtime secrets; the installer generates missing values. Historical
 placeholder values are recognized by non-secret fingerprints so upgrades do not
 restore insecure example keys. Session/encryption keys are never blindly rotated.
-For a source-only syntax check, use `python3 scripts/validate_compose.py`: it gives
-Compose temporary random values, writes no credentials and starts no services.
+Validate a configured deployment with `docker compose config --quiet`. This
+uses its existing `.env`, prints no resolved credentials and starts no services.

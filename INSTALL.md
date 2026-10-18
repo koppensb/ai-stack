@@ -187,7 +187,7 @@ folder receives Compose, application Dockerfiles, `.dockerignore`, service
 configuration, Qwen API and native editor workflows and the runtime Python helpers,
 including the browser health check and public-only egress proxy.
 
-The installer, downloader, setup helpers, tests, documentation, `.env.example`
+The installer, downloader, setup helpers, documentation, `.env.example`
 and the systemd source file remain in the source tree. The installer runs the
 downloader from source with `--root /opt/ai-stack`, streams Open WebUI setup
 helpers into the running container, and installs the service unit directly in
@@ -340,9 +340,9 @@ data. Updates and downloads are performed explicitly through the installer.
 
 ## Validation scope
 
-The included offline regression suite covers preset sharing and migration with
-test doubles. Compose validation checks resolved service configuration; neither
-proves live API compatibility or inference correctness. The installer performs live
+No standalone regression-test scripts are kept in the repository. Compose
+validation checks resolved service configuration; it does not prove live API
+compatibility or inference correctness. The installer performs live
 readiness, GPU visibility, workflow-schema and Prometheus checks on the host.
 The GPU bootstrap adds a small compute test; these checks do not perform model inference. Validate one chat completion, one image
 generation and one reference-image edit on the actual GPU after installation.

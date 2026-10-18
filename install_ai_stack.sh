@@ -149,7 +149,7 @@ log 'Preparing stack files and configuration'
 install -d -m 0755 "$TARGET"
 if [[ "$SOURCE" != "$TARGET" ]]; then
   # Only explicitly listed build/runtime files enter the deployment directory.
-  # Setup helpers, documentation, tests and source credentials are not in the manifest.
+  # Setup helpers, documentation and source credentials are not in the manifest.
   if ((UPDATE_FILES)); then
     backup="$TARGET/.installer-backups/$(date +%Y%m%d%H%M%S)-$$"
     install -d -m 0700 "$backup"

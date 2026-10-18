@@ -12,7 +12,6 @@ The root `AGENTS.md` applies here. Read `INSTALL.md` and the relevant sections o
   `check_managed_files.py` detects differences in existing managed target files.
 - `lock_images.py` records installed image identities.
 - `download_models.py` plans and downloads router and image-model assets.
-- `validate_compose.py` validates example configuration without stored credentials.
 - `check_amd_runtime.py`, `verify_gpu_compute.py`, and `verify_comfyui_gpu.py`
   check different aspects of the installed runtime; they are not generic unit tests.
 

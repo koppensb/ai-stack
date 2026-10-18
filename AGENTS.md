@@ -92,15 +92,16 @@ helper before executing it: several scripts perform work immediately on import.
   this checks syntax only and may create ignored bytecode caches. Do not import
   installer or migration modules merely to check syntax.
 - For Compose/environment changes, when Docker Compose is installed:
-  `python3 scripts/validate_compose.py`. It uses temporary credentials without
-  persisting them or starting services.
+  use `docker compose config --quiet` with a complete deployment `.env`. This
+  validates configuration without starting services or printing secret values.
 - For model/asset changes: `python3 scripts/download_models.py --plan` inspects the
   download plan without Docker or downloads; it does not verify remote availability.
 - Validate changed JSON with Python's JSON parser. JSON has no comments; explain
   decisions in nearby Markdown or existing supported workflow Note nodes.
 - Use focused behavioral tests for meaningful logic changes, including failure and
   rerun behavior. No general test suite or CI configuration is currently checked in;
-  do not invent a passing test command. Use existing languages for new tests.
+  do not invent a passing test command. Keep ad hoc test code outside the
+  repository in temporary directories; retain only installation/runtime scripts.
 - Runtime checks need the appropriate deployment: GPU compute, workflow schema
   validation, actual inference, NGINX checks, and Prometheus checks are separate
   from local syntax checks. Report missing prerequisites and unrun checks clearly.
