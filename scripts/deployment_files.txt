@@ -35,3 +35,4 @@ config/openwebui/qwen-image-2.1-edit_image.json
 config/openwebui/qwen-image-2.1-edit_nodes.json
 config/comfyui/workflows/unsloth_qwen_image_2_1.json
 config/comfyui/workflows/unsloth_qwen_image_2_1_edit.json
+scripts/reset_open_terminal.sh

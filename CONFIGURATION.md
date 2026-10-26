@@ -25,6 +25,7 @@ running deployment's saved settings.
 | `config/prometheus/*.yml` | Scrapes, discovery mapping and alert rules | Validate with `promtool`, then reload/restart Prometheus |
 | `config/grafana/provisioning/` | Internal datasource and file-managed dashboard | Dashboard files are scanned every 30 seconds; restart for datasource/provider changes |
 | `config/llama-metrics-discovery/llama_metrics_discovery.py` | Main-router metrics discovery and VRAM coordination | Restart the bind-mounted Python process |
+| `ai-stack-terminal-reset.timer`, `ai-stack-terminal-reset.service`, `scripts/reset_open_terminal.sh` | Daily full terminal cleanup at 04:00 Europe/Vienna, using the installed image lock; deletes terminal files and container changes | Installer `--update-files`, or copy helper and install units manually; reload systemd and restart timer for schedule changes |
 | `ai-stack.service` | Start/stop prebuilt containers at host boot/shutdown | Reinstall changed unit and run `systemctl daemon-reload` |
 
 Ordinary Compose commands allow exported shell variables to override `.env`.

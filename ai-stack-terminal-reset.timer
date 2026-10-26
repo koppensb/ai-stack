@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily Open Terminal reset at 04:00 Vienna time
+
+[Timer]
+OnCalendar=*-*-* 04:00:00 Europe/Vienna
+Persistent=false
+Unit=ai-stack-terminal-reset.service
+
+[Install]
+WantedBy=timers.target

@@ -82,7 +82,7 @@ MANIFEST="$SOURCE/scripts/deployment_files.txt"
 while IFS= read -r file; do
   [[ -f "$SOURCE/$file" ]] || die "Missing deployment file: $file"
 done < "$MANIFEST"
-for f in scripts/install_gpu_driver.sh scripts/verify_gpu_compute.py config/openwebui/apply_open_terminal.py scripts/download_models.py scripts/check_managed_files.py scripts/configure_install.py scripts/security_settings.py scripts/lock_images.py scripts/prepare_playwright.py scripts/verify_playwright.py scripts/check_amd_runtime.py scripts/verify_comfyui_gpu.py config/openwebui/apply_qwen_images.py config/openwebui/apply_openwebui_parameters.py config/openwebui/verify_qwen_workflows.py ai-stack.service .env.example; do
+for f in scripts/install_gpu_driver.sh scripts/verify_gpu_compute.py config/openwebui/apply_open_terminal.py scripts/download_models.py scripts/check_managed_files.py scripts/configure_install.py scripts/security_settings.py scripts/lock_images.py scripts/prepare_playwright.py scripts/verify_playwright.py scripts/check_amd_runtime.py scripts/verify_comfyui_gpu.py config/openwebui/apply_qwen_images.py config/openwebui/apply_openwebui_parameters.py config/openwebui/verify_qwen_workflows.py ai-stack.service ai-stack-terminal-reset.service ai-stack-terminal-reset.timer .env.example; do
   [[ -f "$SOURCE/$f" ]] || die "Missing source file: $SOURCE/$f (see --source)."
 done
 if [[ "$SOURCE" != "$TARGET" && -d "$TARGET" ]] && (( ! UPDATE_FILES )); then
@@ -284,8 +284,15 @@ if ((START)); then
     cp -p /etc/systemd/system/ai-stack.service "/etc/systemd/system/ai-stack.service.backup-$(date +%Y%m%d%H%M%S)"
   fi
   install -m 0644 "$SOURCE/ai-stack.service" /etc/systemd/system/ai-stack.service
+  for unit in ai-stack-terminal-reset.service ai-stack-terminal-reset.timer; do
+    if [[ -f "/etc/systemd/system/$unit" ]]; then
+      cp -p "/etc/systemd/system/$unit" "/etc/systemd/system/$unit.backup-$(date +%Y%m%d%H%M%S)"
+    fi
+    install -m 0644 "$SOURCE/$unit" "/etc/systemd/system/$unit"
+  done
   systemctl daemon-reload
   systemctl enable --now ai-stack.service
+  systemctl enable --now ai-stack-terminal-reset.timer
   compose ps
 fi
 log 'Setup complete'

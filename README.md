@@ -977,7 +977,7 @@ sudo docker compose exec -T prometheus promtool check config /etc/prometheus/pro
 
 # Open Terminal in Open WebUI
 
-`open-terminal` provides a persistent shell and file workspace at `/home/user`,
+`open-terminal` provides a shared shell and file workspace at `/home/user`,
 stored in `data/open-terminal`. Open WebUI connects over the dedicated
 `terminal-net` network at `http://open-terminal:8000`. The service can reach the
 internet for downloads and package installation, but publishes no host port and
@@ -1022,6 +1022,34 @@ reproducible upgrades are needed.
 Check readiness with `sudo docker compose ps open-terminal openwebui`. In a chat,
 ask the model to create a small file in `/home/user` and read it back; it should
 also appear in the terminal file browser and survive container recreation.
+
+The installer enables a full reset every day at **04:00 Europe/Vienna**. This
+ends all terminal commands, deletes all files in `data/open-terminal` (including
+hidden files), and recreates the container from its installed image. Installed
+packages and container changes are lost. Export needed files before the reset.
+Other stack data, chats, credentials and images are preserved. Resets do not pull
+images or build anything. A stopped terminal is left stopped; missed runs are not
+replayed at boot. Concurrent installer work causes that day's reset to be skipped.
+A cleanup or startup failure is reported by the reset service and may leave the
+terminal stopped; inspect its journal and rerun the service after fixing the cause.
+
+Existing deployments receive the timer on the next installer run with
+`--update-files`. To install only the reset feature manually, copy
+`scripts/reset_open_terminal.sh` into `/opt/ai-stack/scripts/` and run from the
+source checkout on the deployment host (requires the existing image lock):
+
+```bash
+sudo install -m 0644 ai-stack-terminal-reset.service ai-stack-terminal-reset.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now ai-stack-terminal-reset.timer
+systemctl list-timers ai-stack-terminal-reset.timer
+```
+
+Inspect failures with `sudo journalctl -u ai-stack-terminal-reset.service`.
+Change `OnCalendar` using `sudo systemctl edit ai-stack-terminal-reset.timer`
+(with an empty `OnCalendar=` followed by the replacement value), then reload
+systemd and restart the timer. Disable scheduled resets using
+`sudo systemctl disable --now ai-stack-terminal-reset.timer`.
 
 References: [Open Terminal installation](https://docs.openwebui.com/features/open-terminal/setup/installation/)
 and [Open WebUI terminal connections](https://docs.openwebui.com/reference/env-configuration/#terminal_server_connections).

@@ -1,0 +1,10 @@
+[Unit]
+Description=Reset the shared Open Terminal environment
+Requires=docker.service
+After=docker.service ai-stack.service
+ConditionPathExists=/opt/ai-stack/compose.image-lock.json
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/ai-stack/scripts/reset_open_terminal.sh
+TimeoutStartSec=300

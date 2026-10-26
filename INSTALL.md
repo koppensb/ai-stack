@@ -188,7 +188,7 @@ configuration, Qwen API and native editor workflows and the runtime Python helpe
 including the browser health check and public-only egress proxy.
 
 The installer, downloader, setup helpers, documentation, `.env.example`
-and the systemd source file remain in the source tree. The installer runs the
+and the systemd source units remain in the source tree. The installer runs the
 downloader from source with `--root /opt/ai-stack`, streams Open WebUI setup
 helpers into the running container, and installs the service unit directly in
 `/etc/systemd/system`. It reads the environment template from source and creates
@@ -311,6 +311,11 @@ container). The service has outbound network access and no published host port.
 Its key is generated once and preserved in `.env` as `OPEN_TERMINAL_API_KEY`;
 `OPEN_TERMINAL_VERSION` controls the image tag. Startup and installer reruns enforce
 the group grant and remove the old wildcard grant. An intentional disable is preserved.
+
+The installer also enables a daily full terminal reset at 04:00 Europe/Vienna.
+All terminal files, installed packages and running commands are discarded; export
+needed work beforehand. See the reset operations in [README.md](README.md#open-terminal-in-open-webui).
+`--no-start` does not install or enable the reset timer.
 
 ## Access and operations
 
