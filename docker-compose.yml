@@ -161,9 +161,12 @@ services:
   # Separate prompt/task router sharing the model cache and ROCm image.
   # It currently inherits GPU offloading; it is not configured as CPU-only.
   llama-cpp-small:
-    build: *llama-build
-    image: llama_cpp_rocm:latest
+    build:
+      <<: *llama-build
+      target: ${LLAMA_CPP_SMALL_DEVICE-gpu}
+    image: llama_cpp_small:${LLAMA_CPP_SMALL_DEVICE-gpu}
     runtime: amd
+    shm_size: ${LLAMA_CPP_SMALL_SHM_SIZE:?Set LLAMA_CPP_SMALL_SHM_SIZE in .env (see .env.example)}
     networks:
       - public-net
       - backend-net
@@ -175,8 +178,39 @@ services:
       LLAMA_CACHE: /models
       AMD_VISIBLE_DEVICES: ${AMD_VISIBLE_DEVICES:?Set AMD_VISIBLE_DEVICES in .env (see .env.example)}
 
+      LLAMA_CPP_SMALL_DEVICE: ${LLAMA_CPP_SMALL_DEVICE-gpu}
+      LLAMA_CPP_SMALL_CPU_BATCH_SIZE: ${LLAMA_CPP_SMALL_CPU_BATCH_SIZE:-512}
+      LLAMA_CPP_GPU_LAYERS: ${LLAMA_CPP_GPU_LAYERS:?Set LLAMA_CPP_GPU_LAYERS in .env (see .env.example)}
+      LLAMA_CPP_BATCH_SIZE: ${LLAMA_CPP_BATCH_SIZE:?Set LLAMA_CPP_BATCH_SIZE in .env (see .env.example)}
+
     secrets:
       - llama_cpp_api_key
+
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        if [ "$${LLAMA_CPP_BUILD_DEVICE:-gpu}" != "$$LLAMA_CPP_SMALL_DEVICE" ]; then
+          echo 'Small image does not match the configured device. Rebuild it and refresh the image lock.' >&2
+          exit 1
+        fi
+        case "$$LLAMA_CPP_SMALL_DEVICE" in
+          cpu)
+            exec llama-server "$$@" --device none --gpu-layers 0 --no-op-offload \
+              --batch-size "$$LLAMA_CPP_SMALL_CPU_BATCH_SIZE" \
+              --cache-type-k f16 --cache-type-v f16 --flash-attn auto
+            ;;
+          gpu)
+            exec llama-server "$$@" --gpu-layers "$$LLAMA_CPP_GPU_LAYERS" \
+              --split-mode none --main-gpu 0 --batch-size "$$LLAMA_CPP_BATCH_SIZE" \
+              --cache-type-k q8_0 --cache-type-v q8_0 --flash-attn on
+            ;;
+          *)
+            echo 'LLAMA_CPP_SMALL_DEVICE must be cpu or gpu.' >&2
+            exit 1
+            ;;
+        esac
+      - llama-cpp-small
 
     command:
       # No single-model arguments: start llama-server in router mode.
@@ -186,25 +220,10 @@ services:
       - --models-preset
       - /etc/llama-cpp/models.ini
 
-      # These arguments are inherited by each model process.
-      - --gpu-layers
-      - ${LLAMA_CPP_GPU_LAYERS:?Set LLAMA_CPP_GPU_LAYERS in .env (see .env.example)}
-      - --split-mode
-      - none
-      - --main-gpu
-      - "0"
       - --ctx-size
       - ${LLAMA_CPP_SMALL_CTX_SIZE:?Set LLAMA_CPP_SMALL_CTX_SIZE in .env (see .env.example)}
-      - --batch-size
-      - ${LLAMA_CPP_BATCH_SIZE:?Set LLAMA_CPP_BATCH_SIZE in .env (see .env.example)}
       # Reuse identical prompt prefixes while the model process remains loaded.
       - --cache-prompt
-      - --cache-type-k
-      - q8_0
-      - --cache-type-v
-      - q8_0
-      - --flash-attn
-      - "on"
       - --parallel
       - "1"
       # CPU threads for token generation and prompt processing, respectively.

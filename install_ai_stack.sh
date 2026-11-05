@@ -223,6 +223,8 @@ compose config --quiet
 
 log "Building ROCm images (GPU: $GFX); the initial build may take a long time"
 compose build llama-cpp comfyui
+log 'Building the Small image for the selected CPU or GPU profile'
+compose build llama-cpp-small
 log 'Building Open WebUI with matching Pandoc binary and checking document conversion'
 compose build openwebui
 log 'Deriving the remote browser version from the built Open WebUI image'

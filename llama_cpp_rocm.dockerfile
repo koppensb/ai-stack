@@ -1,4 +1,53 @@
-FROM rocm/dev-ubuntu-26.04:latest
+# Build on the inference host so native CPU flags match its exposed instruction set.
+FROM ubuntu:26.04 AS cpu
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG LLAMA_CPP_REF=master
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        cmake \
+        git \
+        libcurl4-openssl-dev \
+        libopenblas-dev \
+        ninja-build \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt
+
+RUN git clone --filter=blob:none https://github.com/ggml-org/llama.cpp.git \
+    && cd llama.cpp \
+    && git checkout "${LLAMA_CPP_REF}" \
+    && cmake -S . -B build -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DGGML_HIP=OFF \
+        -DGGML_NATIVE=ON \
+        -DGGML_BLAS=ON \
+        -DGGML_BLAS_VENDOR=OpenBLAS \
+        -DLLAMA_CURL=ON \
+        -DLLAMA_BUILD_TESTS=OFF \
+        -DLLAMA_BUILD_APP=ON \
+        -DLLAMA_BUILD_TOOLS=ON \
+        -DLLAMA_BUILD_EXAMPLES=OFF \
+    && cmake --build build --config Release --parallel "$(nproc)" \
+    && build/bin/llama download --help >/dev/null \
+    && build/bin/llama-server --list-devices >/dev/null
+
+ENV PATH=/opt/llama.cpp/build/bin:${PATH} \
+    LD_LIBRARY_PATH=/opt/llama.cpp/build/bin \
+    LLAMA_CPP_BUILD_DEVICE=cpu
+
+WORKDIR /models
+VOLUME ["/models"]
+
+EXPOSE 8000
+
+ENTRYPOINT ["llama-server"]
+CMD ["--host", "0.0.0.0", "--port", "8000"]
+
+FROM rocm/dev-ubuntu-26.04:latest AS gpu
 
 ARG DEBIAN_FRONTEND=noninteractive
 

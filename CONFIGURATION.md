@@ -11,7 +11,7 @@ running deployment's saved settings.
 | --- | --- | --- |
 | `.env.example` / deployed `.env` | Deployment paths, credentials, image references, resource limits and service options | Recreate affected containers; rebuild for build arguments |
 | `docker-compose.yml` | Networks, mounts, service arguments, environment mappings and health checks | Recreate affected containers |
-| `llama_cpp_rocm.dockerfile` | ROCm SDK and compiled llama.cpp server/downloader | Rebuild image and recreate both llama.cpp services |
+| `llama_cpp_rocm.dockerfile` | ROCm and native CPU builds of the llama.cpp server/downloader | Rebuild the affected image and recreate its service |
 | `comfyui_rocm.dockerfile` | Latest stable ComfyUI, GGUF nodes and completion-time VRAM cleanup patch | Rebuild image and recreate ComfyUI |
 | `playwright.dockerfile`, `config/playwright/` | Remote Chromium server, launch policy, seccomp profile and sandbox health check | Derive build inputs, rebuild and recreate browser |
 | `config/web-egress/proxy.py` | Public-only HTTP/HTTPS proxy for browser traffic | Recreate proxy |
@@ -188,11 +188,18 @@ router reachability. `/targets.json` lists only loaded models. Prometheus inject
 These are observations of the current settings, not changes made by the comment
 review:
 
-- The image-prompt service uses `LLAMA_CPP_GPU_LAYERS`, just like the main router;
-  it is not CPU-only and its preset loads at startup. The coordinator currently
-  monitors only the main router, so it cannot unload this service's model.
+- `LLAMA_CPP_SMALL_DEVICE=gpu` uses ROCm, the shared `LLAMA_CPP_GPU_LAYERS`
+  and `LLAMA_CPP_BATCH_SIZE`, a q8_0 KV cache, and Flash Attention.
+- `LLAMA_CPP_SMALL_DEVICE=cpu` builds a ROCm-free llama.cpp image with native CPU
+  instructions and OpenBLAS. It disables GPU offloading, uses an f16 KV cache
+  with automatic Flash Attention selection, and uses the independent
+  `LLAMA_CPP_SMALL_CPU_BATCH_SIZE` (default 512) for prompt processing. The
+  f16 cache uses more RAM than q8_0 at the same context size.
 - `LLAMA_CPP_SMALL_THREADS` controls both generation and prompt-processing CPU
-  threads. `--batch-size` uses the shared `LLAMA_CPP_BATCH_SIZE` independently.
+  threads. `LLAMA_CPP_SMALL_CTX_SIZE` sets the context size for both profiles.
+  Recreate `llama-cpp-small` to apply tuning changes. For device changes, rerun
+  the installer to build and lock the matching image. The coordinator monitors
+  the main router only.
 - All chat workspace presets use `Big`. Existing managed chat presets
   migrate once at startup, tracked by `ai_stack.model_presets.big_chat_v1`,
   preserving custom prompts and settings.

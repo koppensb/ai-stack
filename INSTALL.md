@@ -18,6 +18,20 @@ Deployment is fixed to `/opt/ai-stack`.
 For file responsibilities, configuration precedence, and workflow formats, see
 [CONFIGURATION.md](CONFIGURATION.md).
 
+## Choose the Small model device
+
+The interactive installer asks whether to run `Small` on `cpu` or `gpu`.
+Press Enter to keep the saved choice. The initial default is `gpu`, preserving
+existing deployment behavior. With `--non-interactive`, the installer uses
+`LLAMA_CPP_SMALL_DEVICE` from the deployed `.env`, or the default for a new
+installation. The rest of the stack still requires an AMD GPU.
+
+On an existing deployment, run the updated installer with `--update-files` to
+install the new Compose configuration and choose the device. For later device
+changes, rerun the installer to build and lock the matching image. CPU mode
+compiles native instructions for the inference host or VM, so build it on
+that machine.
+
 ## What the installer does
 
 1. Checks Ubuntu and source completeness, optionally installs missing GPU packages,

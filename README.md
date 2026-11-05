@@ -723,7 +723,7 @@ with `ROCM_GFX_TARGETS` and `LLAMA_CPP_REF` set in `.env`:
 
 ```bash
 sudo nano .env
-sudo docker compose build llama-cpp comfyui openwebui
+sudo docker compose build llama-cpp llama-cpp-small comfyui openwebui
 # Derive the browser version from that freshly built WebUI image.
 sudo python3 scripts/prepare_playwright.py --root "$PWD"
 sudo docker compose -f docker-compose.yml -f compose.playwright.json build playwright
@@ -1227,13 +1227,12 @@ and [Open WebUI SearXNG integration](https://docs.openwebui.com/features/chat-co
 Open WebUI uses llama.cpp for chat and the internal ComfyUI service for images.
 The separate `llama-cpp-small` service provides Small Q4_K_M for Open WebUI
 tasks, configured in
-`config/llama-cpp-small/models.ini`. It shares the built llama.cpp image and model
-cache, but exposes a separate internal API at `http://llama-cpp-small:8000/v1`.
-No host port is published. The current Compose configuration shares
-`LLAMA_CPP_GPU_LAYERS` with the main router and loads this model at startup;
-it is not CPU-only. `LLAMA_CPP_SMALL_CTX_SIZE` defaults to 16384 tokens.
-`LLAMA_CPP_SMALL_THREADS` controls both `--threads` and `--threads-batch`
-(default 8). The logical batch size uses the shared `LLAMA_CPP_BATCH_SIZE`. The VRAM coordinator monitors
+`config/llama-cpp-small/models.ini`. It shares the model cache and builds its own
+CPU or ROCm image. Its internal API is at `http://llama-cpp-small:8000/v1`.
+No host port is published. Small loads at startup. Set
+`LLAMA_CPP_SMALL_DEVICE` to `cpu` or `gpu` in `.env`, or choose it in the
+installer. See [Small model settings](CONFIGURATION.md#current-wiring-to-keep-in-mind)
+for the profile options. The VRAM coordinator monitors
 only the main router and does not unload this separate service's model.
 
 With `ENABLE_IMAGE_PROMPT_GENERATION=true`, Open WebUI also uses the external task

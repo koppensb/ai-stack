@@ -20,6 +20,30 @@ except ValueError:
     if len(host) > 253 or not all(re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?', p) for p in host.split('.')):
         raise SystemExit('Invalid DNS name for --host.')
     san = 'DNS:' + host
+def choose_small_device(saved):
+    if saved not in ('cpu', 'gpu'):
+        raise SystemExit('Set LLAMA_CPP_SMALL_DEVICE to cpu or gpu in /opt/ai-stack/.env.')
+    if os.environ.get('AI_INSTALL_NON_INTERACTIVE') == '1':
+        return saved
+    try:
+        with open('/dev/tty', 'r') as terminal_in, open('/dev/tty', 'w') as terminal_out:
+            while True:
+                print(f'Run the Small model on cpu or gpu [{saved}]? ',
+                      end='', file=terminal_out, flush=True)
+                answer = terminal_in.readline()
+                if not answer:
+                    raise EOFError
+                choice = answer.strip().lower() or saved
+                if choice in ('cpu', 'gpu'):
+                    return choice
+                print('Enter cpu or gpu.', file=terminal_out, flush=True)
+    except (OSError, EOFError):
+        raise SystemExit('A terminal is required to choose the Small model device. Use --non-interactive for unattended installation.')
+
+
+small_device = choose_small_device(values['LLAMA_CPP_SMALL_DEVICE'])
+
+
 def prompt_secret(name, default, empty_action):
     if os.environ.get('AI_INSTALL_NON_INTERACTIVE') == '1':
         return default
@@ -75,6 +99,7 @@ for new_name, old_name in (
 updates.update({'AI_STACK_ROOT': str(root), 'PUBLIC_IP_OR_DOMAIN': host,
            'LLAMA_CPP_API_KEY': key, 'GRAFANA_ADMIN_PASSWORD': password,
            'GRAFANA_SECRET_KEY': grafana_secret, 'COMFYUI_AUTH_PASSWORD': comfy_password,
+           'LLAMA_CPP_SMALL_DEVICE': small_device,
            'ROCM_GFX_TARGETS': os.environ['AI_INSTALL_GFX'],
            'LLAMA_CPP_REF': os.environ['AI_INSTALL_REF'] or values['LLAMA_CPP_REF']})
 # Enable prompt generation when introducing the dedicated image-prompt service.
