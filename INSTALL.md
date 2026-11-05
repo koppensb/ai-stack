@@ -24,7 +24,10 @@ The interactive installer asks whether to run `Small` on `cpu` or `gpu`.
 Press Enter to keep the saved choice. The initial default is `gpu`, preserving
 existing deployment behavior. With `--non-interactive`, the installer uses
 `LLAMA_CPP_SMALL_DEVICE` from the deployed `.env`, or the default for a new
-installation. The rest of the stack still requires an AMD GPU.
+installation. It prints the selected device when skipping the prompt.
+Use `--small-device cpu` or `--small-device gpu` to override the saved choice
+explicitly, including with `--non-interactive`. An explicit choice skips the
+device prompt. The rest of the stack still requires an AMD GPU.
 
 On an existing deployment, run the updated installer with `--update-files` to
 install the new Compose configuration and choose the device. For later device
@@ -291,7 +294,7 @@ no API keys. The installer creates `data/search-gateway` for UID/GID 65534.
 Example upgrade:
 
 ```bash
-sudo bash /path/to/updated/ai-stack/install_ai_stack.sh --update-files --non-interactive
+sudo bash /path/to/updated/ai-stack/install_ai_stack.sh --update-files
 ```
 
 Keep the complete source tree outside `/opt/ai-stack`; reruns require it.

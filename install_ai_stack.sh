@@ -11,6 +11,7 @@ TARGET=/opt/ai-stack
 HOST_NAME=
 GFX=
 LLAMA_REF=
+SMALL_DEVICE=
 WAIT_SECONDS=1800
 START=1
 NON_INTERACTIVE=0
@@ -25,6 +26,7 @@ sudo bash install_ai_stack.sh --host ai.example.local [options]
                      Optional for an existing installation
   --gfx TARGET        e.g. gfx1201; otherwise detected using rocminfo
   --llama-ref REF     llama.cpp commit/tag; otherwise existing value or master
+  --small-device cpu|gpu  Select Small model device explicitly (also unattended)
   --wait SECONDS      Service readiness timeout (default: 1800)
   --no-start          Configure, build and download models without starting the stack
   --update-files      Back up and replace managed application/configuration files
@@ -53,10 +55,11 @@ while (($#)); do
     --no-start) START=0; shift ;;
     --update-files) UPDATE_FILES=1; shift ;;
     --non-interactive) NON_INTERACTIVE=1; shift ;;
-    --source|--host|--gfx|--llama-ref|--wait|--gpu-driver-series)
+    --source|--host|--gfx|--llama-ref|--wait|--gpu-driver-series|--small-device)
       (($# >= 2)) && [[ -n "$2" ]] || die "Missing value for $1."
       case "$1" in
         --source) SOURCE=$2 ;; --host) HOST_NAME=$2 ;; --gfx) GFX=$2 ;;
+        --small-device) SMALL_DEVICE=$2 ;;
         --llama-ref) LLAMA_REF=$2 ;; --wait) WAIT_SECONDS=$2 ;;
         --gpu-driver-series) GPU_DRIVER_SERIES_OVERRIDE=$2 ;;
       esac
@@ -67,6 +70,7 @@ done
 [[ "$WAIT_SECONDS" =~ ^[1-9][0-9]*$ ]] || die '--wait must be positive.'
 [[ -z "$GFX" || "$GFX" =~ ^gfx[0-9a-f]+$ ]] || die 'Invalid GPU target.'
 [[ -z "$LLAMA_REF" || "$LLAMA_REF" =~ ^[a-zA-Z0-9][a-zA-Z0-9._/-]*$ ]] || die 'Invalid llama.cpp reference.'
+[[ -z "$SMALL_DEVICE" || "$SMALL_DEVICE" == cpu || "$SMALL_DEVICE" == gpu ]] || die '--small-device must be cpu or gpu.'
 [[ $EUID == 0 ]] || die 'Please run with sudo bash.'
 [[ $(uname -s) == Linux && -r /etc/os-release ]] || die 'Ubuntu is required.'
 # Only operating system metadata is sourced as shell code, never .env.
@@ -191,6 +195,7 @@ compose() {
 }
 export AI_INSTALL_SOURCE="$SOURCE"
 export AI_INSTALL_NON_INTERACTIVE="$NON_INTERACTIVE"
+export AI_INSTALL_SMALL_DEVICE="$SMALL_DEVICE"
 export AI_INSTALL_HOST="$HOST_NAME" AI_INSTALL_GFX="$GFX" AI_INSTALL_REF="$LLAMA_REF"
 python3 "$SOURCE/scripts/configure_install.py"
 

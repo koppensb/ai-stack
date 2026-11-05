@@ -21,9 +21,16 @@ except ValueError:
         raise SystemExit('Invalid DNS name for --host.')
     san = 'DNS:' + host
 def choose_small_device(saved):
+    requested = os.environ.get('AI_INSTALL_SMALL_DEVICE', '')
+    if requested:
+        if requested not in ('cpu', 'gpu'):
+            raise SystemExit('--small-device must be cpu or gpu.')
+        print(f'Small model device: {requested} (explicit installer option).')
+        return requested
     if saved not in ('cpu', 'gpu'):
         raise SystemExit('Set LLAMA_CPP_SMALL_DEVICE to cpu or gpu in /opt/ai-stack/.env.')
     if os.environ.get('AI_INSTALL_NON_INTERACTIVE') == '1':
+        print(f'Small model device: {saved} (non-interactive; use --small-device cpu or --small-device gpu to change it).')
         return saved
     try:
         with open('/dev/tty', 'r') as terminal_in, open('/dev/tty', 'w') as terminal_out:
