@@ -198,12 +198,14 @@ review:
 - `LLAMA_CPP_SMALL_DEVICE=cpu` builds a ROCm-free llama.cpp image with native CPU
   instructions and OpenBLAS. It disables GPU offloading, uses an f16 KV cache
   with automatic Flash Attention selection, and uses the independent
-  `LLAMA_CPP_SMALL_CPU_BATCH_SIZE` (default 512) for prompt processing. The
+  `LLAMA_CPP_SMALL_CPU_BATCH_SIZE` (default 1024) for prompt processing. The
   f16 cache uses more RAM than q8_0 at the same context size.
 - `LLAMA_CPP_UBATCH_SIZE` defaults to 2048 for Big. The installer upgrades the
   previous bundled value 512 to 2048 and preserves other saved values.
   `LLAMA_CPP_SMALL_UBATCH_SIZE` independently controls Small's physical prompt
-  microbatch in both CPU and GPU modes (default 512). Keep each microbatch no
+  microbatch in both CPU and GPU modes (default 1024). The installer upgrades
+  Small's previous batch and microbatch defaults of 512 to 1024, preserving other
+  saved values. Keep each microbatch no
   larger than its logical batch size. Recreate the affected service after tuning.
 - `LLAMA_CPP_SMALL_THREADS` controls both generation and prompt-processing CPU
   threads. `LLAMA_CPP_SMALL_CTX_SIZE` sets the context size for both profiles.

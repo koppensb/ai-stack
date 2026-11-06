@@ -179,7 +179,7 @@ services:
       AMD_VISIBLE_DEVICES: ${AMD_VISIBLE_DEVICES:?Set AMD_VISIBLE_DEVICES in .env (see .env.example)}
 
       LLAMA_CPP_SMALL_DEVICE: ${LLAMA_CPP_SMALL_DEVICE-gpu}
-      LLAMA_CPP_SMALL_CPU_BATCH_SIZE: ${LLAMA_CPP_SMALL_CPU_BATCH_SIZE:-512}
+      LLAMA_CPP_SMALL_CPU_BATCH_SIZE: ${LLAMA_CPP_SMALL_CPU_BATCH_SIZE:-1024}
       LLAMA_CPP_GPU_LAYERS: ${LLAMA_CPP_GPU_LAYERS:?Set LLAMA_CPP_GPU_LAYERS in .env (see .env.example)}
       LLAMA_CPP_BATCH_SIZE: ${LLAMA_CPP_BATCH_SIZE:?Set LLAMA_CPP_BATCH_SIZE in .env (see .env.example)}
 
@@ -223,7 +223,7 @@ services:
       - --ctx-size
       - ${LLAMA_CPP_SMALL_CTX_SIZE:?Set LLAMA_CPP_SMALL_CTX_SIZE in .env (see .env.example)}
       - --ubatch-size
-      - ${LLAMA_CPP_SMALL_UBATCH_SIZE:-512}
+      - ${LLAMA_CPP_SMALL_UBATCH_SIZE:-1024}
       # Reuse identical prompt prefixes while the model process remains loaded.
       - --cache-prompt
       - --parallel
