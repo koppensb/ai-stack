@@ -118,6 +118,9 @@ for new_name, old_name in (
 ):
     if new_name not in present_names and old_name in values:
         updates[new_name] = values[old_name]
+# Upgrade the previous bundled microbatch default; preserve custom tuning.
+if values.get('LLAMA_CPP_UBATCH_SIZE') == '512':
+    updates['LLAMA_CPP_UBATCH_SIZE'] = '2048'
 updates.update(context_settings)
 updates.update({'AI_STACK_ROOT': str(root), 'PUBLIC_IP_OR_DOMAIN': host,
            'LLAMA_CPP_API_KEY': key, 'GRAFANA_ADMIN_PASSWORD': password,
