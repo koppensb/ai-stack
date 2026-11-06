@@ -188,6 +188,11 @@ router reachability. `/targets.json` lists only loaded models. Prometheus inject
 These are observations of the current settings, not changes made by the comment
 review:
 
+- The installer derives Big's `LLAMA_CPP_CTX_SIZE` from
+  `LLAMA_CPP_BASE_CTX_SIZE`, adding 32,768 tokens when Small uses CPU and restoring
+  the baseline when Small uses GPU. Existing deployments retain their current
+  context as the initial baseline. Repeated updates do not accumulate additions.
+  This is the shared KV context budget across the main router's slots.
 - `LLAMA_CPP_SMALL_DEVICE=gpu` uses ROCm, the shared `LLAMA_CPP_GPU_LAYERS`
   and `LLAMA_CPP_BATCH_SIZE`, a q8_0 KV cache, and Flash Attention.
 - `LLAMA_CPP_SMALL_DEVICE=cpu` builds a ROCm-free llama.cpp image with native CPU

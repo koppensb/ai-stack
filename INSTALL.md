@@ -35,6 +35,15 @@ changes, rerun the installer to build and lock the matching image. CPU mode
 compiles native instructions for the inference host or VM, so build it on
 that machine.
 
+The installer adds 32,768 tokens to Big's shared context budget when Small runs
+on CPU. With the default baseline of 163,858 tokens, CPU mode sets
+`LLAMA_CPP_CTX_SIZE=196626`; GPU mode restores 163,858. Existing deployments
+adopt their current context size as `LLAMA_CPP_BASE_CTX_SIZE` on the first update.
+Later runs derive the effective value from this baseline, so the bonus never
+accumulates. Edit `LLAMA_CPP_BASE_CTX_SIZE` to tune the baseline, then rerun the
+installer. The extra budget is shared across Big's slots.
+
+
 ## What the installer does
 
 1. Checks Ubuntu and source completeness, optionally installs missing GPU packages,

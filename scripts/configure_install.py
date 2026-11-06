@@ -48,7 +48,22 @@ def choose_small_device(saved):
         raise SystemExit('A terminal is required to choose the Small model device. Use --non-interactive for unattended installation.')
 
 
+def big_context_settings(settings, original_env, small_device):
+    """Derive the effective context from a saved baseline without accumulating bonuses."""
+    has_baseline = re.search(
+        r'^\s*(?:export\s+)?LLAMA_CPP_BASE_CTX_SIZE\s*=', original_env, re.M
+    )
+    # Existing deployments adopt their current context as the baseline once.
+    base = settings['LLAMA_CPP_BASE_CTX_SIZE'] if has_baseline else settings['LLAMA_CPP_CTX_SIZE']
+    if not re.fullmatch(r'[1-9][0-9]*', base):
+        raise SystemExit('Big context size must be a positive integer in .env.')
+    effective = int(base) + (32768 if small_device == 'cpu' else 0)
+    print(f'Big shared context budget: {effective} tokens (baseline {base}, Small on {small_device}).')
+    return {'LLAMA_CPP_BASE_CTX_SIZE': base, 'LLAMA_CPP_CTX_SIZE': str(effective)}
+
+
 small_device = choose_small_device(values['LLAMA_CPP_SMALL_DEVICE'])
+context_settings = big_context_settings(values, original, small_device)
 
 
 def prompt_secret(name, default, empty_action):
@@ -103,6 +118,7 @@ for new_name, old_name in (
 ):
     if new_name not in present_names and old_name in values:
         updates[new_name] = values[old_name]
+updates.update(context_settings)
 updates.update({'AI_STACK_ROOT': str(root), 'PUBLIC_IP_OR_DOMAIN': host,
            'LLAMA_CPP_API_KEY': key, 'GRAFANA_ADMIN_PASSWORD': password,
            'GRAFANA_SECRET_KEY': grafana_secret, 'COMFYUI_AUTH_PASSWORD': comfy_password,
