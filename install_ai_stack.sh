@@ -86,7 +86,7 @@ MANIFEST="$SOURCE/scripts/deployment_files.txt"
 while IFS= read -r file; do
   [[ -f "$SOURCE/$file" ]] || die "Missing deployment file: $file"
 done < "$MANIFEST"
-for f in scripts/install_gpu_driver.sh scripts/verify_gpu_compute.py config/openwebui/apply_open_terminal.py scripts/download_models.py scripts/check_managed_files.py scripts/configure_install.py scripts/security_settings.py scripts/lock_images.py scripts/prepare_playwright.py scripts/verify_playwright.py scripts/check_amd_runtime.py scripts/verify_comfyui_gpu.py config/openwebui/apply_qwen_images.py config/openwebui/apply_openwebui_parameters.py config/openwebui/verify_qwen_workflows.py ai-stack.service ai-stack-terminal-reset.service ai-stack-terminal-reset.timer .env.example; do
+for f in scripts/install_gpu_driver.sh scripts/verify_gpu_compute.py config/openwebui/apply_open_terminal.py scripts/download_models.py scripts/check_managed_files.py scripts/configure_install.py scripts/security_settings.py scripts/lock_images.py scripts/prepare_playwright.py scripts/verify_playwright.py scripts/check_amd_runtime.py scripts/verify_comfyui_gpu.py config/openwebui/apply_qwen_images.py config/openwebui/apply_openwebui_parameters.py config/openwebui/verify_qwen_workflows.py ai-stack.service .env.example; do
   [[ -f "$SOURCE/$f" ]] || die "Missing source file: $SOURCE/$f (see --source)."
 done
 if [[ "$SOURCE" != "$TARGET" && -d "$TARGET" ]] && (( ! UPDATE_FILES )); then
@@ -209,12 +209,10 @@ services:
         ROCM_GFX_TARGETS: ${ROCM_GFX_TARGETS:?Set ROCM_GFX_TARGETS in .env (see .env.example)}
         LLAMA_CPP_REF: ${LLAMA_CPP_REF:?Set LLAMA_CPP_REF in .env (see .env.example)}
 EOF
-install -d -m 0750 data/{grafana,prometheus,openwebui,open-terminal,llama-cpp,comfyui,searxng,search-gateway}
+install -d -m 0750 data/{grafana,prometheus,openwebui,terminals,llama-cpp,comfyui,searxng,search-gateway}
 chown 65534:65534 data/search-gateway
 install -d -m 0750 data/comfyui/{input,output,user,models,custom_nodes}
 install -d -m 0750 data/comfyui/models/{checkpoints,vae,loras,unet,text_encoders}
-# Open Terminal runs as user (UID/GID 1000); preserve ownership inside its workspace.
-chown 1000:1000 data/open-terminal
 # Match the upstream Grafana and Prometheus container UIDs for writable data.
 chown -R 472:0 data/grafana
 chown -R 65534:65534 data/prometheus
@@ -235,7 +233,7 @@ compose build openwebui
 log 'Deriving the remote browser version from the built Open WebUI image'
 python3 "$SOURCE/scripts/prepare_playwright.py" --root "$TARGET"
 compose build playwright
-compose pull web-egress nginx open-terminal searxng search-gateway llama-metrics-discovery prometheus grafana
+compose pull web-egress nginx terminals searxng search-gateway llama-metrics-discovery prometheus grafana
 log 'Checking browser compatibility, sandbox and egress in a disposable project'
 # This also runs with --no-start: only disposable check containers are started.
 python3 "$SOURCE/scripts/verify_playwright.py" --root "$TARGET"
@@ -261,6 +259,17 @@ if ((START)); then
   log 'Starting the stack and checking readiness'
   recreate_args=()
   if [[ -e .installer-recreate-required ]]; then recreate_args=(--force-recreate); fi
+  # Retire the destructive legacy reset before activating the new deployment.
+  if systemctl list-unit-files ai-stack-terminal-reset.timer --no-legend | grep -q ai-stack-terminal-reset; then
+    systemctl disable --now ai-stack-terminal-reset.timer
+    systemctl stop ai-stack-terminal-reset.service
+    rm -f /etc/systemd/system/ai-stack-terminal-reset.{timer,service}
+  fi
+  # Remove only the legacy shared container; preserve its bind-mounted files.
+  if docker container inspect open-terminal >/dev/null 2>&1; then
+    docker stop open-terminal
+    docker rm open-terminal
+  fi
   if ! compose up -d --no-build --wait --wait-timeout "$WAIT_SECONDS" "${recreate_args[@]}"; then
     compose ps -a
     die "Services are not ready. In $TARGET, check logs with docker compose -f docker-compose.yml -f compose.install.yml logs."
@@ -291,15 +300,8 @@ if ((START)); then
     cp -p /etc/systemd/system/ai-stack.service "/etc/systemd/system/ai-stack.service.backup-$(date +%Y%m%d%H%M%S)"
   fi
   install -m 0644 "$SOURCE/ai-stack.service" /etc/systemd/system/ai-stack.service
-  for unit in ai-stack-terminal-reset.service ai-stack-terminal-reset.timer; do
-    if [[ -f "/etc/systemd/system/$unit" ]]; then
-      cp -p "/etc/systemd/system/$unit" "/etc/systemd/system/$unit.backup-$(date +%Y%m%d%H%M%S)"
-    fi
-    install -m 0644 "$SOURCE/$unit" "/etc/systemd/system/$unit"
-  done
   systemctl daemon-reload
   systemctl enable --now ai-stack.service
-  systemctl enable --now ai-stack-terminal-reset.timer
   compose ps
 fi
 log 'Setup complete'

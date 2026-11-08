@@ -328,20 +328,32 @@ files resume; remove a corrupt completed file before retrying its download.
 
 ## Open Terminal
 
-The installer starts Open Terminal and registers it in Open WebUI, including
-existing databases. Select **Open Terminal** in a chat and use a model with native
-function calling. Access is limited to administrators and members of the managed
-`Terminal-Zugriff` group. Add trusted users under **Settings → Admin → Groups**.
-All users of this connection share `data/open-terminal` (`/home/user` in the
-container). The service has outbound network access and no published host port.
-Its key is generated once and preserved in `.env` as `OPEN_TERMINAL_API_KEY`;
-`OPEN_TERMINAL_VERSION` controls the image tag. Startup and installer reruns enforce
-the group grant and remove the old wildcard grant. An intentional disable is preserved.
+Open WebUI connects to `http://terminals:3000`. Terminals creates and starts a
+separate Open Terminal container on first use for each authorized user. Files in
+`/home/user` persist under `data/terminals/terminals/<user-id>`. Idle cleanup is
+disabled and no scheduled reset is installed. Access remains restricted to the
+`Terminal-Zugriff` group and administrators.
 
-The installer also enables a daily full terminal reset at 04:00 Europe/Vienna.
-All terminal files, installed packages and running commands are discarded; export
-needed work beforehand. See the reset operations in [README.md](README.md#open-terminal-in-open-webui).
-`--no-start` does not install or enable the reset timer.
+The orchestrator alone mounts the Docker socket (host-level privileges); user
+containers have no socket. The dedicated `ai-stack-terminals` network provides
+outbound access without host-published terminal ports. The existing
+`OPEN_TERMINAL_API_KEY` authenticates WebUI to Terminals; `TERMINALS_VERSION` and
+`OPEN_TERMINAL_VERSION` select orchestrator and worker images respectively.
+Upstream requires an Enterprise License for organizational/commercial production
+use: see [Terminals](https://github.com/open-webui/terminals).
+
+Upgrade with the installer `--update-files`. It disables the legacy reset timer.
+Before a manual upgrade, disable and stop `ai-stack-terminal-reset.timer` and
+`ai-stack-terminal-reset.service`. Stop and remove the old `open-terminal`
+container without deleting `data/open-terminal`; old shared files are retained
+there and are not automatically assigned to any user. Recreate `terminals` and
+`openwebui`, run `config/openwebui/apply_open_terminal.py` inside WebUI, then restart
+WebUI to migrate saved connections. Preserve the existing API key. Pre-pull the
+configured worker image on the deployment host before first use.
+
+Verify with two authorized accounts: create a file with one account, confirm it
+is absent for the other, then restart the service and confirm each user's files
+remain. Runtime verification requires the deployment host.
 
 ## Access and operations
 

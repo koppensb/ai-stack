@@ -134,7 +134,7 @@ def terminal_connection():
     return {
         "id": "ai-stack-open-terminal",
         "name": "Open Terminal",
-        "url": "http://open-terminal:8000",
+        "url": "http://terminals:3000",
         "key": key,
         "auth_type": "bearer",
         "enabled": True,

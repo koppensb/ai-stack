@@ -36,8 +36,9 @@ Rerun the installer after changing it. The direct browser origin must match
 ## Terminal group
 
 `OPEN_TERMINAL_ACCESS_GROUP=Terminal-Zugriff` creates a managed group with no
-members. Add only trusted users in Admin Settings → Groups. They share the same
-workspace and can execute commands; this is not per-user isolation. Administrators
+members. Add only trusted users in Admin Settings → Groups. Each receives a separate persistent terminal container
+and can execute commands. The Terminals orchestrator has host-level Docker socket
+access; user containers do not. Administrators
 retain the upstream administrative bypass. Do not change that bypass without
 checking the desired admin/group behavior.
 

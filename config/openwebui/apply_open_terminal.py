@@ -12,7 +12,7 @@ async def connection_settings(config, grants):
     connections = list(await config.get("terminal_server.connections") or [])
     matched = False
     for index, connection in enumerate(connections):
-        if connection.get("id") == managed["id"] or connection.get("url", "").rstrip("/") == managed["url"]:
+        if connection.get("id") == managed["id"] or connection.get("url", "").rstrip("/") in {managed["url"], "http://open-terminal:8000"}:
             matched = True
             # Retain other options, but remove old user:* and unrelated grants.
             saved_config = dict(connection.get("config") or {})

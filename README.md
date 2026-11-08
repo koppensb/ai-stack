@@ -977,82 +977,32 @@ sudo docker compose exec -T prometheus promtool check config /etc/prometheus/pro
 
 # Open Terminal in Open WebUI
 
-`open-terminal` provides a shared shell and file workspace at `/home/user`,
-stored in `data/open-terminal`. Open WebUI connects over the dedicated
-`terminal-net` network at `http://open-terminal:8000`. The service can reach the
-internet for downloads and package installation, but publishes no host port and
-has no Docker socket or other stack-data mounts.
+Open WebUI connects to `http://terminals:3000`. Terminals creates and starts a
+separate Open Terminal container on first use for each authorized user. Files in
+`/home/user` persist under `data/terminals/terminals/<user-id>`. Idle cleanup is
+disabled and no scheduled reset is installed. Access remains restricted to the
+`Terminal-Zugriff` group and administrators.
 
-Use the updated installer with `--update-files` to generate the shared API key,
-prepare directory permissions, pull the image and register the connection in an
-existing Open WebUI database (see [INSTALL.md](INSTALL.md)). Existing terminal
-connections are retained. The managed connection is restricted to the explicit
-`Terminal-Zugriff` group; an intentional disable is preserved. Add trusted members
-in Admin Settings. Existing wildcard grants on this connection are removed.
+The orchestrator alone mounts the Docker socket (host-level privileges); user
+containers have no socket. The dedicated `ai-stack-terminals` network provides
+outbound access without host-published terminal ports. The existing
+`OPEN_TERMINAL_API_KEY` authenticates WebUI to Terminals; `TERMINALS_VERSION` and
+`OPEN_TERMINAL_VERSION` select orchestrator and worker images respectively.
+Upstream requires an Enterprise License for organizational/commercial production
+use: see [Terminals](https://github.com/open-webui/terminals).
 
-For manual deployments:
+Upgrade with the installer `--update-files`. It disables the legacy reset timer.
+Before a manual upgrade, disable and stop `ai-stack-terminal-reset.timer` and
+`ai-stack-terminal-reset.service`. Stop and remove the old `open-terminal`
+container without deleting `data/open-terminal`; old shared files are retained
+there and are not automatically assigned to any user. Recreate `terminals` and
+`openwebui`, run `config/openwebui/apply_open_terminal.py` inside WebUI, then restart
+WebUI to migrate saved connections. Preserve the existing API key. Pre-pull the
+configured worker image on the deployment host before first use.
 
-1. Add `OPEN_TERMINAL_VERSION=latest` and a random `OPEN_TERMINAL_API_KEY` to the
-   deployed `.env` (for example, generate a key with `openssl rand -hex 32`).
-2. Copy the updated Compose file and `config/openwebui/start.py` into the deployment.
-3. In the deployment directory, run:
-
-```bash
-sudo install -d -m 0750 -o 1000 -g 1000 data/open-terminal
-sudo docker compose pull open-terminal
-sudo docker compose build openwebui
-sudo docker compose up -d --no-deps --wait open-terminal openwebui
-sudo docker compose exec -T openwebui python -c 'import sys; sys.path.insert(0, "/etc/openwebui"); exec(compile(sys.stdin.read(), "<setup>", "exec"))' < /path/to/ai-stack/config/openwebui/apply_open_terminal.py
-sudo docker compose restart openwebui
-```
-
-Include `-f docker-compose.yml -f compose.install.yml` for installer-managed
-deployments. The startup wrapper supplies `TERMINAL_SERVER_CONNECTIONS` on new
-installations; the setup helper merges it into saved settings on existing ones.
-After changing the key, recreate both services and rerun the helper.
-
-Refresh Open WebUI and select **Open Terminal** in the chat. Use native function
-calling with a tool-capable model. Only members of the managed `Terminal-Zugriff`
-group and administrators have access. Manage membership under **Settings → Admin → Groups**;
-startup and setup helpers enforce the group restriction on the managed connection.
-This is a shared workspace for everyone granted access, not a separate container
-per user. Pin tested `OPEN_TERMINAL_VERSION` and `OPENWEBUI_VERSION` tags when
-reproducible upgrades are needed.
-
-Check readiness with `sudo docker compose ps open-terminal openwebui`. In a chat,
-ask the model to create a small file in `/home/user` and read it back; it should
-also appear in the terminal file browser and survive container recreation.
-
-The installer enables a full reset every day at **04:00 Europe/Vienna**. This
-ends all terminal commands, deletes all files in `data/open-terminal` (including
-hidden files), and recreates the container from its installed image. Installed
-packages and container changes are lost. Export needed files before the reset.
-Other stack data, chats, credentials and images are preserved. Resets do not pull
-images or build anything. A stopped terminal is left stopped; missed runs are not
-replayed at boot. Concurrent installer work causes that day's reset to be skipped.
-A cleanup or startup failure is reported by the reset service and may leave the
-terminal stopped; inspect its journal and rerun the service after fixing the cause.
-
-Existing deployments receive the timer on the next installer run with
-`--update-files`. To install only the reset feature manually, copy
-`scripts/reset_open_terminal.sh` into `/opt/ai-stack/scripts/` and run from the
-source checkout on the deployment host (requires the existing image lock):
-
-```bash
-sudo install -m 0644 ai-stack-terminal-reset.service ai-stack-terminal-reset.timer /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now ai-stack-terminal-reset.timer
-systemctl list-timers ai-stack-terminal-reset.timer
-```
-
-Inspect failures with `sudo journalctl -u ai-stack-terminal-reset.service`.
-Change `OnCalendar` using `sudo systemctl edit ai-stack-terminal-reset.timer`
-(with an empty `OnCalendar=` followed by the replacement value), then reload
-systemd and restart the timer. Disable scheduled resets using
-`sudo systemctl disable --now ai-stack-terminal-reset.timer`.
-
-References: [Open Terminal installation](https://docs.openwebui.com/features/open-terminal/setup/installation/)
-and [Open WebUI terminal connections](https://docs.openwebui.com/reference/env-configuration/#terminal_server_connections).
+Verify with two authorized accounts: create a file with one account, confirm it
+is absent for the other, then restart the service and confirm each user's files
+remain. Runtime verification requires the deployment host.
 
 # Web Search with SearXNG
 

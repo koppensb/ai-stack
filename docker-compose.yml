@@ -6,6 +6,7 @@ networks:
   public-net:
     driver: bridge
   terminal-net:
+    name: ai-stack-terminals
     # Dedicated network with outbound access for package installation.
     driver: bridge
   # Separate browser-facing app traffic from model and monitoring backends.
@@ -360,27 +361,31 @@ services:
       retries: 3
       start_period: 10s
 
-  # One shared persistent workspace for the explicit terminal group, not per-user
-  # isolation. The startup helper removes the old all-user connection grant.
-  open-terminal:
-    image: ghcr.io/open-webui/open-terminal:${OPEN_TERMINAL_VERSION:?Set OPEN_TERMINAL_VERSION in .env (see .env.example)}
-    container_name: open-terminal
+  # Provision persistent user terminals on demand; only the orchestrator has Docker access.
+  terminals:
+    image: ghcr.io/open-webui/terminals:${TERMINALS_VERSION:-latest}
     restart: unless-stopped
     networks:
       - terminal-net
     expose:
-      - "8000"
+      - "3000"
     environment:
-      OPEN_TERMINAL_API_KEY: ${OPEN_TERMINAL_API_KEY:?Set OPEN_TERMINAL_API_KEY in .env (see .env.example)}
+      TERMINALS_API_KEY: ${OPEN_TERMINAL_API_KEY:?Set OPEN_TERMINAL_API_KEY in .env}
+      TERMINALS_IMAGE: ghcr.io/open-webui/open-terminal:${OPEN_TERMINAL_VERSION:?Set OPEN_TERMINAL_VERSION in .env}
+      TERMINALS_DOCKER_NETWORK: ai-stack-terminals
+      TERMINALS_DOCKER_DATA_DIR: /app/data/terminals
+      TERMINALS_DOCKER_HOST_DATA_DIR: ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env}/data/terminals/terminals
+      TERMINALS_IDLE_TIMEOUT_MINUTES: "0"
+      TERMINALS_ENABLE_UI: "false"
     volumes:
-      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env (see .env.example)}/data/open-terminal:/home/user
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${AI_STACK_ROOT:?Set AI_STACK_ROOT in .env}/data/terminals:/app/data
     healthcheck:
-      test: ["CMD", "python", "-c", "import json, urllib.request; assert json.load(urllib.request.urlopen('http://localhost:8000/health', timeout=5))['status'] == 'ok'"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3000/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 60s
-      start_interval: 5s
 
   web-egress:
     image: python:3-alpine
@@ -460,7 +465,7 @@ services:
         condition: service_healthy
       search-gateway:
         condition: service_healthy
-      open-terminal:
+      terminals:
         condition: service_healthy
       llama-cpp-small:
         condition: service_started
