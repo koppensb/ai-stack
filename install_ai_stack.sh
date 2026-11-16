@@ -158,14 +158,15 @@ if [[ "$SOURCE" != "$TARGET" ]]; then
     backup="$TARGET/.installer-backups/$(date +%Y%m%d%H%M%S)-$$"
     install -d -m 0700 "$backup"
     rsync -ar --checksum --backup --backup-dir="$backup" --files-from="$MANIFEST" "$SOURCE/" "$TARGET/"
-    # Retire only the replaced managed workflows; retain backups and user workflows.
+    # Archive replaced managed files so providers no longer load them.
     for retired in \
       config/openwebui/qwen-image-2512_image.json \
       config/openwebui/qwen-image-2512_nodes.json \
       config/openwebui/qwen-image-edit-2511_image.json \
       config/openwebui/qwen-image-edit-2511_nodes.json \
       config/comfyui/workflows/unsloth_qwen_image_2512.json \
-      config/comfyui/workflows/unsloth_qwen_image_edit_2511.json; do
+      config/comfyui/workflows/unsloth_qwen_image_edit_2511.json \
+      config/grafana/provisioning/dashboards/files/llama-cpp-inference-stack.json; do
       if [[ -f "$TARGET/$retired" ]]; then
         install -d -m 0700 "$backup/$(dirname "$retired")"
         mv "$TARGET/$retired" "$backup/$retired"

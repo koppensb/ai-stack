@@ -21,7 +21,7 @@ config/search-gateway/gateway.py
 config/search-gateway/settings.toml
 config/grafana/provisioning/datasources/prometheus.yml
 config/grafana/provisioning/dashboards/dashboards.yml
-config/grafana/provisioning/dashboards/files/llama-cpp-inference-stack.json
+config/grafana/provisioning/dashboards/files/llamacpp-monitoring.json
 config/openwebui/start.py
 config/openwebui/apply_open_terminal.py
 config/openwebui/apply_security.py

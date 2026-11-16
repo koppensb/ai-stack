@@ -941,12 +941,12 @@ curl -k https://localhost:8443/v1/chat/completions \
 
 No automated test suite is included in this source tree.
 
-The repository provisions both the Prometheus datasource and the dashboard in
-`config/grafana/provisioning/dashboards/files/llama-cpp-inference-stack.json`.
-Its UID is `llamacpp-server-overview`.
-The dashboard provider scans the mounted directory every 30 seconds and disables
-UI updates. Speculative-decoding panels can be empty when the running llama.cpp
-build or model does not expose the optional metrics.
+The repository provisions the Prometheus datasource and the **llama.cpp Monitoring**
+dashboard in `config/grafana/provisioning/dashboards/files/llamacpp-monitoring.json`.
+Its UID is `llamacpp-monitoring`. The dashboard provider scans the mounted
+directory every 30 seconds and disables UI updates. On existing deployments,
+the installer’s `--update-files` option archives the retired dashboard file
+so Grafana removes the old provisioned dashboard.
 
 Prometheus loads `config/prometheus/rules.yml` and scrapes both its own endpoint
 and the coordinator's `/metrics`, in addition to loaded llama.cpp models. Router
