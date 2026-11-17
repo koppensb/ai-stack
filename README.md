@@ -988,6 +988,9 @@ containers have no socket. The dedicated `ai-stack-terminals` network provides
 outbound access without host-published terminal ports. The existing
 `OPEN_TERMINAL_API_KEY` authenticates WebUI to Terminals; `TERMINALS_VERSION` and
 `OPEN_TERMINAL_VERSION` select orchestrator and worker images respectively.
+The installer pulls the configured worker image before starting the stack,
+including with `--no-start`. For templates that select a custom image, pre-pull
+that image separately if needed.
 Upstream requires an Enterprise License for organizational/commercial production
 use: see [Terminals](https://github.com/open-webui/terminals).
 

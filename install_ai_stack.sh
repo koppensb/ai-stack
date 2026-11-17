@@ -235,6 +235,20 @@ log 'Deriving the remote browser version from the built Open WebUI image'
 python3 "$SOURCE/scripts/prepare_playwright.py" --root "$TARGET"
 compose build playwright
 compose pull web-egress nginx terminals searxng search-gateway llama-metrics-discovery prometheus grafana
+# The worker is launched by Terminals, so Compose only pulls its orchestrator.
+log 'Pre-pulling the configured Open Terminal workspace image'
+if ! terminal_worker_image=$(compose config --format json | python3 -c '
+import json
+import sys
+
+image = json.load(sys.stdin)["services"]["terminals"]["environment"]["TERMINALS_IMAGE"]
+if not isinstance(image, str) or not image.strip():
+    sys.exit("The terminals service must define TERMINALS_IMAGE.")
+print(image)
+'); then
+  die 'Could not resolve the Open Terminal workspace image from Compose.'
+fi
+docker image pull -- "$terminal_worker_image"
 log 'Checking browser compatibility, sandbox and egress in a disposable project'
 # This also runs with --no-start: only disposable check containers are started.
 python3 "$SOURCE/scripts/verify_playwright.py" --root "$TARGET"
